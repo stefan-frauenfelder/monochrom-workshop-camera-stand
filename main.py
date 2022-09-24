@@ -143,6 +143,8 @@ class NanotecPd6Motor():
             number = 2
         elif value == "joystick_mode":
             number = 12
+        elif value == "speed_mode":
+            number = 5
         else:
             number = 1
         command = self._command_letters["position_mode"] + \
@@ -248,29 +250,22 @@ if __name__ == '__main__':
     # the motor for the horizontal motion
     horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_revolution=0.12)
 
-    # the motor for the vertical motion
-    vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_revolution=0.12)
-
-    horizontal_slider.speed = 0.2     # m/s
+    horizontal_slider.speed = 0.005     # m/s
     horizontal_slider.distance = 0.01    # m
     horizontal_slider.direction = 0     # 1 is out, 0 is in
-    horizontal_slider.mode = "relative_positioning"
+    horizontal_slider.mode = "speed_mode"
     horizontal_slider.ramp_type = "jerkfree"
-    horizontal_slider.jerk = 100
-
-    vertical_slider.speed = 0.2    # m/s
-    vertical_slider.distance = 0.01    # m
-    vertical_slider.direction = 0     # 1 is out, 0 is in
-    vertical_slider.mode = "relative_positioning"
-    vertical_slider.ramp_type = "jerkfree"
-    vertical_slider.jerk = 100
-
-    horizontal_slider.mode = "joystick_mode"
-    vertical_slider.mode = "joystick_mode"
+    horizontal_slider.jerk = 10
 
     horizontal_slider.run()
-    vertical_slider.run()
 
-    # time.sleep(5)  # Sleep for 3 seconds
-    # horizontal_slider.jerk = 100
-    # horizontal_slider.stop()
+    time.sleep(0.5)  # Sleep for 3 seconds
+    horizontal_slider.speed = 0.01
+    time.sleep(0.5)  # Sleep for 3 seconds
+    horizontal_slider.speed = 0.015
+    time.sleep(0.5)  # Sleep for 3 seconds
+    horizontal_slider.speed = 0.010
+    time.sleep(0.5)  # Sleep for 3 seconds
+    horizontal_slider.speed = 0.005
+    time.sleep(0.5)  # Sleep for 3 seconds
+    horizontal_slider.stop()
