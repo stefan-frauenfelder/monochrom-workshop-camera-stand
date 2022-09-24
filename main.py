@@ -259,13 +259,8 @@ if __name__ == '__main__':
 
     horizontal_slider.run()
 
-    time.sleep(0.5)  # Sleep for 3 seconds
-    horizontal_slider.speed = 0.01
-    time.sleep(0.5)  # Sleep for 3 seconds
-    horizontal_slider.speed = 0.015
-    time.sleep(0.5)  # Sleep for 3 seconds
-    horizontal_slider.speed = 0.010
-    time.sleep(0.5)  # Sleep for 3 seconds
-    horizontal_slider.speed = 0.005
-    time.sleep(0.5)  # Sleep for 3 seconds
+    for speed in range(0.005, 0.05, 0.005):
+        horizontal_slider.speed = speed
+        time.sleep(0.2)
+
     horizontal_slider.stop()
