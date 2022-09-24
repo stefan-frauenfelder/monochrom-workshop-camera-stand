@@ -212,8 +212,7 @@ class LinearMotor(NanotecPd6Motor):
     @distance.setter
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
-        self.step_distance = int(self.micro_steps_per_step *
-                                 self.steps_per_revolution * value / self.distance_per_revolution)
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_revolution * value / self.distance_per_revolution)
         self._distance = value  # update value (this is not nice, should be a write-only property)
 
     @property
