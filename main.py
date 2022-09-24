@@ -10,7 +10,7 @@ def print_hi(name):
 
 
 class Commander():
-    def __int__(self, ser, port='COM6', baud_rate=115200):
+    def __int__(self, ser, port, baud_rate=115200):
         self.port = port
         self.baud_rate = baud_rate
         self.ser = ser
@@ -222,8 +222,7 @@ class LinearMotor(NanotecPd6Motor):
     @speed.setter
     def speed(self, value):
         # convert from physical distance in meters per second to (micro) steps per second of the motor
-        self.step_speed = int(self.micro_steps_per_step *
-                              self.steps_per_revolution * value / self.distance_per_revolution)
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_revolution * value / self.distance_per_revolution)
         self._speed = value  # update value (this is not nice, should be a write-only property)
 
 
@@ -236,7 +235,7 @@ if __name__ == '__main__':
     print(sys.executable)
     print(sys.version)
 
-    serial_port = serial.Serial(port='COM6',
+    serial_port = serial.Serial(port='/dev/ttyUSB0',
                                 baudrate=115200,
                                 bytesize=serial.EIGHTBITS,
                                 parity=serial.PARITY_NONE,
