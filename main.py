@@ -228,11 +228,73 @@ class LinearMotor(NanotecPd6Motor):
         self._speed = value  # update value (this is not nice, should be a write-only property)
 
 
+def linear_ramp(LinearMotor, speed_step_frequency=10, cycle_duration=8, max_speed=0.1):
+
+    speed_step_periode = 1.0 / speed_step_frequency
+
+    num_speed_steps = int((cycle_duration / 4.0) / speed_step_periode)
+
+    horizontal_slider.run()
+
+    for half_cycle in range(2):
+
+        horizontal_slider.direction = half_cycle
+
+        for speed_step in range(num_speed_steps):
+            horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
+            time.sleep(speed_step_periode)
+
+        for speed_step in range(num_speed_steps, 0, -1):
+            horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
+            time.sleep(speed_step_periode)
+
+    horizontal_slider.stop()
+
+
+def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
+
+    step_periode = 1.0 / step_frequency
+
+    num_steps_for_cycle = int(cycle_duration / step_periode)
+
+    horizontal_slider.run()
+    vertical_slider.run()
+
+    for step in range(num_steps_for_cycle):
+
+        angle = step / num_steps_for_cycle * 2.0 * math.pi
+
+        horizontal_speed_scaling = math.sin(angle)
+        vertical_speed_scaling = math.cos(angle)
+
+        if horizontal_speed_scaling > 0:
+            horizontal_slider.direction = 0
+        else:
+            horizontal_slider.direction = 1
+            horizontal_speed_scaling = -horizontal_speed_scaling
+
+        horizontal_slider.speed = horizontal_speed_scaling * max_speed
+
+        if vertical_speed_scaling > 0:
+            vertical_slider.direction = 0
+        else:
+            vertical_slider.direction = 1
+            vertical_speed_scaling = -vertical_speed_scaling
+
+        vertical_slider.speed = vertical_speed_scaling * max_speed
+
+        time.sleep(step_periode)
+
+    horizontal_slider.stop()
+    vertical_slider.stop()
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     import serial
     import time
     import sys
+    import math
 
     print(sys.executable)
     print(sys.version)
@@ -250,17 +312,26 @@ if __name__ == '__main__':
     # the motor for the horizontal motion
     horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_revolution=0.12)
 
+    vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_revolution=0.12)
+
     horizontal_slider.speed = 0.005     # m/s
-    horizontal_slider.distance = 0.01    # m
     horizontal_slider.direction = 0     # 1 is out, 0 is in
     horizontal_slider.mode = "speed_mode"
     horizontal_slider.ramp_type = "jerkfree"
-    horizontal_slider.jerk = 10
+    horizontal_slider.jerk = 5
 
-    horizontal_slider.run()
+    vertical_slider.speed = 0.005     # m/s
+    vertical_slider.direction = 0     # 1 is out, 0 is in
+    vertical_slider.mode = "speed_mode"
+    vertical_slider.ramp_type = "jerkfree"
+    vertical_slider.jerk = 5
 
-    for speed in range(0.005, 0.05, 0.005):
-        horizontal_slider.speed = speed
-        time.sleep(0.2)
+    start_time = time.time()
 
-    horizontal_slider.stop()
+    circle_run()
+
+    end_time = time.time()
+
+    elapsed_time = end_time - start_time
+
+    print('Execution time:', elapsed_time, 'seconds')
