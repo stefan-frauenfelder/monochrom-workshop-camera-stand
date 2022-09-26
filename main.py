@@ -289,49 +289,98 @@ def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
     vertical_slider.stop()
 
 
+def init():
+    print("Rotary Encoder Test Program")
+    GPIO.setwarnings(True)
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(Enc_A, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(Enc_B, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.add_event_detect(Enc_A, GPIO.RISING, callback=rotation_decode)
+    return
+
+
+def rotation_decode(Enc_A):
+    global counter
+    # time.sleep(0.002)
+    Switch_A = GPIO.input(Enc_A)
+    Switch_B = GPIO.input(Enc_B)
+
+    if (Switch_A == 1) and (Switch_B == 0):
+        counter += 1
+        print("direction -> ", counter)
+        while Switch_B == 0:
+            Switch_B = GPIO.input(Enc_B)
+        while Switch_B == 1:
+            Switch_B = GPIO.input(Enc_B)
+        return
+
+    elif (Switch_A == 1) and (Switch_B == 1):
+        counter -= 1
+        print("direction <- ", counter)
+        while Switch_A == 1:
+            Switch_A = GPIO.input(Enc_A)
+        return
+    else:
+        return
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     import serial
     import time
     import sys
     import math
+    import RPi.GPIO as GPIO
 
     print(sys.executable)
     print(sys.version)
 
-    serial_port = serial.Serial(port='/dev/ttyUSB0',
-                                baudrate=115200,
-                                bytesize=serial.EIGHTBITS,
-                                parity=serial.PARITY_NONE,
-                                stopbits=serial.STOPBITS_ONE,
-                                timeout=1)
+    counter = 10
 
-    the_commander = Commander()  # create the singleton commander
-    the_commander.ser = serial_port  # hand the serial port to the commander to use
+    Enc_A = 23
+    Enc_B = 24
 
-    # the motor for the horizontal motion
-    horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_revolution=0.12)
+    try:
+        init()
+        while True:
+            time.sleep(1)
 
-    vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_revolution=0.12)
+    except KeyboardInterrupt:
+        GPIO.cleanup()
 
-    horizontal_slider.speed = 0.005     # m/s
-    horizontal_slider.direction = 0     # 1 is out, 0 is in
-    horizontal_slider.mode = "speed_mode"
-    horizontal_slider.ramp_type = "jerkfree"
-    horizontal_slider.jerk = 5
+    # serial_port = serial.Serial(port='/dev/ttyUSB0',
+    #                             baudrate=115200,
+    #                             bytesize=serial.EIGHTBITS,
+    #                             parity=serial.PARITY_NONE,
+    #                             stopbits=serial.STOPBITS_ONE,
+    #                             timeout=1)
 
-    vertical_slider.speed = 0.005     # m/s
-    vertical_slider.direction = 0     # 1 is out, 0 is in
-    vertical_slider.mode = "speed_mode"
-    vertical_slider.ramp_type = "jerkfree"
-    vertical_slider.jerk = 5
+    # the_commander = Commander()  # create the singleton commander
+    # the_commander.ser = serial_port  # hand the serial port to the commander to use
 
-    start_time = time.time()
+    # # the motor for the horizontal motion
+    # horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_revolution=0.12)
 
-    circle_run()
+    # vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_revolution=0.12)
 
-    end_time = time.time()
+    # horizontal_slider.speed = 0.005     # m/s
+    # horizontal_slider.direction = 0     # 1 is out, 0 is in
+    # horizontal_slider.mode = "speed_mode"
+    # horizontal_slider.ramp_type = "jerkfree"
+    # horizontal_slider.jerk = 5
 
-    elapsed_time = end_time - start_time
+    # vertical_slider.speed = 0.005     # m/s
+    # vertical_slider.direction = 0     # 1 is out, 0 is in
+    # vertical_slider.mode = "speed_mode"
+    # vertical_slider.ramp_type = "jerkfree"
+    # vertical_slider.jerk = 5
 
-    print('Execution time:', elapsed_time, 'seconds')
+    # start_time = time.time()
+
+    # circle_run()
+
+    # end_time = time.time()
+
+    # elapsed_time = end_time - start_time
+
+    # print('Execution time:', elapsed_time, 'seconds')
