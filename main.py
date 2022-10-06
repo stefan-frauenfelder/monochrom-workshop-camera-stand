@@ -114,40 +114,62 @@ if __name__ == '__main__':
     Enc_A = 23
     Enc_B = 24
 
-    try:
-        init()
-        while True:
-            time.sleep(1)
+    # try:
+    #     init()
+    #     while True:
+    #         time.sleep(1)
 
-    except KeyboardInterrupt:
-        GPIO.cleanup()
+    # except KeyboardInterrupt:
+    #     GPIO.cleanup()
 
-    # serial_port = serial.Serial(port='/dev/ttyUSB0',
-    #                             baudrate=115200,
-    #                             bytesize=serial.EIGHTBITS,
-    #                             parity=serial.PARITY_NONE,
-    #                             stopbits=serial.STOPBITS_ONE,
-    #                             timeout=1)
+    serial_port = serial.Serial(port='/dev/ttyUSB0',
+                                baudrate=115200,
+                                bytesize=serial.EIGHTBITS,
+                                parity=serial.PARITY_NONE,
+                                stopbits=serial.STOPBITS_ONE,
+                                timeout=1)
 
-    # the_commander = Commander()  # create the singleton commander
-    # the_commander.ser = serial_port  # hand the serial port to the commander to use
+    the_commander = Commander()  # create the singleton commander
+    the_commander.ser = serial_port  # hand the serial port to the commander to use
 
-    # # the motor for the horizontal motion
-    # horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_revolution=0.12)
+    # Horizontal
 
-    # vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_revolution=0.12)
+    horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_motor_revolution=0.12)
 
-    # horizontal_slider.speed = 0.005     # m/s
-    # horizontal_slider.direction = 0     # 1 is out, 0 is in
-    # horizontal_slider.mode = "speed_mode"
-    # horizontal_slider.ramp_type = "jerkfree"
-    # horizontal_slider.jerk = 5
+    horizontal_slider.distance = 0.5  # m
+    horizontal_slider.speed = 0.06     # m/s
+    horizontal_slider.direction = 1     # 1 is out, 0 is in
+    horizontal_slider.mode = "relative_positioning"
+    horizontal_slider.ramp_type = "jerkfree"
+    horizontal_slider.jerk = 1
 
-    # vertical_slider.speed = 0.005     # m/s
-    # vertical_slider.direction = 0     # 1 is out, 0 is in
-    # vertical_slider.mode = "speed_mode"
-    # vertical_slider.ramp_type = "jerkfree"
-    # vertical_slider.jerk = 5
+    # Vertical
+
+    vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_motor_revolution=0.12)
+
+    vertical_slider.distance = 0.5
+    vertical_slider.speed = 0.06   # m/s
+    vertical_slider.direction = 1     # 1 is out, 0 is in
+    vertical_slider.mode = "relative_positioning"
+    vertical_slider.ramp_type = "jerkfree"
+    vertical_slider.jerk = 1
+
+    # Rotor
+
+    radians_per_motor_revolution = 2 * math.pi / 25
+
+    rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution)
+
+    rotor.speed = 0.6     # rad/s
+    rotor.relative_angle = 3     # rad
+    rotor.direction = 0     # 1 is clockwise
+    rotor.mode = "relative_positioning"
+    rotor.ramp_type = "jerkfree"
+    rotor.jerk = 1
+
+    horizontal_slider.run()
+    vertical_slider.run()
+    rotor.run()
 
     # start_time = time.time()
 

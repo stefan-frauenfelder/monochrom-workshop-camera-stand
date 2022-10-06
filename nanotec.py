@@ -16,10 +16,10 @@ class Commander():
 
 
 class NanotecPd6Motor():
-    def __init__(self, commander, motor_address=1, steps_per_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address=1, steps_per_motor_revolution=200, micro_steps_per_step=2):
         self.commander = commander
         self.motor_address = motor_address
-        self.steps_per_revolution = steps_per_revolution
+        self.steps_per_motor_revolution = steps_per_motor_revolution
         self.micro_steps_per_step = micro_steps_per_step
         self._step_speed = 10
         self._step_distance = 10
@@ -29,6 +29,7 @@ class NanotecPd6Motor():
 
         self._command_letters = {
             "position_mode": b'p',
+            "step_mode": b'g',
             "travel_distance": b's',
             "initial_step_frequency": b'u',
             "maximum_step_frequency": b'o',
@@ -55,6 +56,7 @@ class NanotecPd6Motor():
         }
         self._ram_record = {
             "position_mode": 1,
+            "step_mode": self.micro_steps_per_step,   # number of microsteps per step
             "travel_distance": self._step_distance,
             "initial_step_frequency": 1,
             "maximum_step_frequency": self._step_speed,
@@ -176,12 +178,12 @@ class NanotecPd6Motor():
 
 class LinearMotor(NanotecPd6Motor):
 
-    def __init__(self, commander, motor_address, distance_per_revolution, steps_per_revolution=200, micro_steps_per_step=2):
-        super().__init__(commander, motor_address, steps_per_revolution, micro_steps_per_step)
+    def __init__(self, commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=2):
+        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
         self._distance = 0.01  # meters
         self._speed = 0.01  # meters/second
-        self.distance_per_revolution = distance_per_revolution
+        self.distance_per_motor_revolution = distance_per_motor_revolution
 
     @property
     def distance(self):
@@ -190,7 +192,7 @@ class LinearMotor(NanotecPd6Motor):
     @distance.setter
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
-        self.step_distance = int(self.micro_steps_per_step * self.steps_per_revolution * value / self.distance_per_revolution)
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.distance_per_motor_revolution)
         self._distance = value  # update value (this is not nice, should be a write-only property)
 
     @property
@@ -200,5 +202,35 @@ class LinearMotor(NanotecPd6Motor):
     @speed.setter
     def speed(self, value):
         # convert from physical distance in meters per second to (micro) steps per second of the motor
-        self.step_speed = int(self.micro_steps_per_step * self.steps_per_revolution * value / self.distance_per_revolution)
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.distance_per_motor_revolution)
+        self._speed = value  # update value (this is not nice, should be a write-only property)
+
+
+class RotationMotor(NanotecPd6Motor):
+
+    def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=2):
+        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
+
+        self._relative_angle = 0.1  # radians
+        self._speed = 0.01  # rad/second
+        self.angle_per_motor_revolution = angle_per_motor_revolution
+
+    @property
+    def relative_angle(self):
+        return self._relative_angle
+
+    @relative_angle.setter
+    def relative_angle(self, value):
+        # convert from physical relative_angle in radians to (micro) steps of the motor
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.angle_per_motor_revolution)
+        self._relative_angle = value  # update value (this is not nice, should be a write-only property)
+
+    @property
+    def speed(self):
+        return self._speed
+
+    @speed.setter
+    def speed(self, value):
+        # convert from physical speed in radians per second to (micro) steps per second of the motor
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.angle_per_motor_revolution)
         self._speed = value  # update value (this is not nice, should be a write-only property)
