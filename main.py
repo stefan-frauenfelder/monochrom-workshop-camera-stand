@@ -62,12 +62,29 @@ def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
 
 
 def init():
+
     print("Rotary Encoder Test Program")
+
     GPIO.setwarnings(True)
     GPIO.setmode(GPIO.BCM)
+
+    # Rotary encoder inputs
     GPIO.setup(Enc_A, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(Enc_B, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    # Optoisolated GPIO inputs for optical limit switches
+    GPIO.setup(Soft_limit_right, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(Soft_limit_left, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(Soft_limit_top, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(Soft_limit_bottom, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
     GPIO.add_event_detect(Enc_A, GPIO.RISING, callback=rotation_decode)
+
+    GPIO.add_event_detect(Soft_limit_right, GPIO.RISING, callback=soft_limit_violation)
+    GPIO.add_event_detect(Soft_limit_left, GPIO.RISING, callback=soft_limit_violation)
+    GPIO.add_event_detect(Soft_limit_top, GPIO.RISING, callback=soft_limit_violation)
+    GPIO.add_event_detect(Soft_limit_bottom, GPIO.RISING, callback=soft_limit_violation)
+
     return
 
 
@@ -96,6 +113,12 @@ def rotation_decode(Enc_A):
         return
 
 
+def soft_limit_violation(port):
+    print("Soft limit violation")
+    horizontal_slider.stop()
+    vertical_slider.stop()
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     import serial
@@ -111,16 +134,17 @@ if __name__ == '__main__':
 
     counter = 10
 
+    # Rotary encoder inputs
     Enc_A = 23
     Enc_B = 24
 
-    # try:
-    #     init()
-    #     while True:
-    #         time.sleep(1)
+    # Optoisolated GPIO inputs for optical limit switches
+    Soft_limit_right = 17
+    Soft_limit_left = 18
+    Soft_limit_top = 19
+    Soft_limit_bottom = 20
 
-    # except KeyboardInterrupt:
-    #     GPIO.cleanup()
+    init()
 
     serial_port = serial.Serial(port='/dev/ttyUSB0',
                                 baudrate=115200,
@@ -137,7 +161,7 @@ if __name__ == '__main__':
     horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_motor_revolution=0.12)
 
     horizontal_slider.distance = 0.5  # m
-    horizontal_slider.speed = 0.06     # m/s
+    horizontal_slider.speed = 0.01     # m/s
     horizontal_slider.direction = 1     # 1 is out, 0 is in
     horizontal_slider.mode = "relative_positioning"
     horizontal_slider.ramp_type = "jerkfree"
@@ -148,7 +172,7 @@ if __name__ == '__main__':
     vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_motor_revolution=0.12)
 
     vertical_slider.distance = 0.5
-    vertical_slider.speed = 0.06   # m/s
+    vertical_slider.speed = 0.01   # m/s
     vertical_slider.direction = 1     # 1 is out, 0 is in
     vertical_slider.mode = "relative_positioning"
     vertical_slider.ramp_type = "jerkfree"
@@ -167,9 +191,17 @@ if __name__ == '__main__':
     rotor.ramp_type = "jerkfree"
     rotor.jerk = 1
 
-    horizontal_slider.run()
     vertical_slider.run()
-    rotor.run()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        GPIO.cleanup()
+
+    # horizontal_slider.run()
+    # vertical_slider.run()
+    # rotor.run()
 
     # start_time = time.time()
 
