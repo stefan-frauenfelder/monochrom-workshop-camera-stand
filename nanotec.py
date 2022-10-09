@@ -10,7 +10,7 @@ class Commander():
 
     def write_command(self, address, command):
         self.ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
-        answer = self.ser.read_until(b'\r')  # read until '\r' appears
+        return self.ser.read_until(b'\r')  # read until '\r' appears
 
         # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
 
@@ -53,6 +53,7 @@ class NanotecPd6Motor():
             "input_4": b':port_in_d',
             "input_5": b':port_in_e',
             "input_6": b':port_in_f',
+            "step_position": b'C',
         }
         self._ram_record = {
             "position_mode": 1,
@@ -72,7 +73,7 @@ class NanotecPd6Motor():
             "maximum_jerk_for_break_ramp": self._jerk,
             "joystick_dead_range": 5,
             "joystick_filter": 16,
-            "limit_switch_behavior": 9250,  # default + ext.lim = stop
+            "limit_switch_behavior": 17442,  # default   alternative: 9250,  # default + ext.lim = stop
             "input_1": 7,  # external reference switch
             "input_2": 7   # external reference switch
 
@@ -127,6 +128,8 @@ class NanotecPd6Motor():
             number = 12
         elif value == "speed_mode":
             number = 5
+        elif value == "external_reference_run":
+            number = 4
         else:
             number = 1
         command = self._command_letters["position_mode"] + (str(number).encode('UTF-8'))
@@ -163,6 +166,17 @@ class NanotecPd6Motor():
         self.commander.write_command(self.motor_address, command)
         self._jerk = value
 
+    @property
+    def step_position(self):
+        command = self._command_letters["step_position"]
+        position_answer_byte = self.commander.write_command(self.motor_address, command)
+        position_answer_str = position_answer_byte.decode('UTF-8')
+        if "+" in position_answer_str:
+            position_str = position_answer_str[3:]
+        else:
+            position_str = position_answer_str[2:]
+        return int(position_str)
+
     def run(self):
         # start the motor with the current settings
         self.commander.write_command(self.motor_address, b'A')
@@ -178,32 +192,25 @@ class NanotecPd6Motor():
 
 class LinearMotor(NanotecPd6Motor):
 
-    def __init__(self, commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=2):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
-        self._distance = 0.01  # meters
-        self._speed = 0.01  # meters/second
         self.distance_per_motor_revolution = distance_per_motor_revolution
 
-    @property
-    def distance(self):
-        return self._distance
-
-    @distance.setter
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
         self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.distance_per_motor_revolution)
-        self._distance = value  # update value (this is not nice, should be a write-only property)
 
-    @property
-    def speed(self):
-        return self._speed
-
-    @speed.setter
     def speed(self, value):
         # convert from physical distance in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.distance_per_motor_revolution)
-        self._speed = value  # update value (this is not nice, should be a write-only property)
+
+    distance = property(None, distance)
+    speed = property(None, speed)
+
+    @property
+    def position(self):
+        return self.step_position / self.micro_steps_per_step / self.steps_per_motor_revolution * self.distance_per_motor_revolution
 
 
 class RotationMotor(NanotecPd6Motor):
@@ -211,26 +218,27 @@ class RotationMotor(NanotecPd6Motor):
     def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=2):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
-        self._relative_angle = 0.1  # radians
-        self._speed = 0.01  # rad/second
         self.angle_per_motor_revolution = angle_per_motor_revolution
 
-    @property
-    def relative_angle(self):
-        return self._relative_angle
-
-    @relative_angle.setter
-    def relative_angle(self, value):
-        # convert from physical relative_angle in radians to (micro) steps of the motor
+    def angle(self, value):
+        # convert from physical angle in radians to (micro) steps of the motor
         self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.angle_per_motor_revolution)
-        self._relative_angle = value  # update value (this is not nice, should be a write-only property)
 
-    @property
-    def speed(self):
-        return self._speed
-
-    @speed.setter
     def speed(self, value):
         # convert from physical speed in radians per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.angle_per_motor_revolution)
-        self._speed = value  # update value (this is not nice, should be a write-only property)
+
+    angle = property(None, angle)
+    speed = property(None, speed)
+
+
+class Slider(LinearMotor):
+
+    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=2):
+        super().__init__(commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
+
+        self.position_offset = position_offset
+
+    @property
+    def position(self):
+        return super().position + self.position_offset

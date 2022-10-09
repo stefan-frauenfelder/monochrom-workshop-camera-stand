@@ -91,8 +91,16 @@ def angular_speed(alpha, distance, radius, horizontal_extension):
 
 def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
 
-    max_speed = 0.15
-    max_rotor_speed = 0.15
+    horizontal_slider.mode = "speed_mode"
+    horizontal_slider.ramp_type = "jerkfree"
+    horizontal_slider.jerk = 5
+
+    rotor.mode = "speed_mode"
+    rotor.ramp_type = "jerkfree"
+    rotor.jerk = 1
+
+    max_speed = 0.1
+    max_rotor_speed = 0.1
 
     step_periode = 1.0 / step_frequency
 
@@ -192,8 +200,8 @@ def rotation_decode(Enc_A):
 
 def soft_limit_violation(port):
     print("Soft limit violation")
-    horizontal_slider.stop()
-    rotor.stop()
+    # horizontal_slider.stop()
+    # rotor.stop()
 
 
 # Press the green button in the gutter to run the script.
@@ -235,17 +243,50 @@ if __name__ == '__main__':
 
     # Horizontal
 
-    horizontal_slider = LinearMotor(commander=the_commander, motor_address=1, distance_per_motor_revolution=0.12)
+    horizontal_slider = Slider(commander=the_commander, motor_address=1, position_offset=0.152)
 
     Direction_right = 0
     Direction_left = 1
 
-    horizontal_slider.distance = 0.6  # m
-    horizontal_slider.speed = 0.0001     # m/s
+    horizontal_slider.distance = 1  # m
+    horizontal_slider.speed = 0.02     # m/s
     horizontal_slider.direction = Direction_right     # 1 is out, 0 is in
-    horizontal_slider.mode = "speed_mode"
+    horizontal_slider.mode = "external_reference_run"
     horizontal_slider.ramp_type = "jerkfree"
     horizontal_slider.jerk = 5
+
+    horizontal_slider.run()
+
+    time.sleep(60)
+
+    horizontal_slider.mode = "relative_positioning"
+    horizontal_slider.direction = Direction_left
+    horizontal_slider.distance = 0.1  # m
+    horizontal_slider.speed = 0.05     # m/s
+
+    print("Step position 0: ", horizontal_slider.position)
+
+    horizontal_slider.run()
+
+    time.sleep(1)
+
+    print("Step position 1: ", horizontal_slider.position)
+
+    time.sleep(10)
+
+    print("Step position 2: ", horizontal_slider.position)
+
+    # horizontal_slider.run()
+
+    # time.sleep(1)
+
+    # position = horizontal_slider.position
+
+    # print("Step position 2: ", position)
+
+    # time.sleep(1)
+
+    # position = horizontal_slider.position
 
     # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
     # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
@@ -266,18 +307,36 @@ if __name__ == '__main__':
 
     # Rotor
 
-    radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
+    # radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-    rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution)
+    # rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution)
 
-    # rotor.speed = 0.1     # rad/s
-    rotor.relative_angle = 2 * math.pi     # rad
-    rotor.direction = 1     # 1 is clockwise
-    rotor.mode = "speed_mode"
-    rotor.ramp_type = "jerkfree"
-    rotor.jerk = 1
+    # # rotor.speed = 0.1     # rad/s
+    # rotor.relative_angle = 2 * math.pi     # rad
+    # rotor.direction = 1     # 1 is clockwise
+    # rotor.mode = "relative_positioning"
+    # rotor.ramp_type = "jerkfree"
+    # rotor.jerk = 1
 
-    flat_circle_run()
+    # position = horizontal_slider.position
+
+    # print("Step position 1: ", position)
+
+    # horizontal_slider.run()
+
+    # time.sleep(1)
+
+    # position = horizontal_slider.position
+
+    # print("Step position 2: ", position)
+
+    # time.sleep(1)
+
+    # position = horizontal_slider.position
+
+    # print("Step position 2: ", position)
+
+    # flat_circle_run()
 
     # horizontal_slider.run()
     # vertical_slider.run()
