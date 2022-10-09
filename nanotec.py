@@ -12,7 +12,7 @@ class Commander():
         self.ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
         answer = self.ser.read_until(b'\r')  # read until '\r' appears
 
-        print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+        # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
 
 
 class NanotecPd6Motor():
