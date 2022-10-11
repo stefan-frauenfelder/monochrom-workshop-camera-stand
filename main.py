@@ -243,38 +243,28 @@ if __name__ == '__main__':
 
     # Horizontal
 
-    horizontal_slider = Slider(commander=the_commander, motor_address=1, position_offset=0.152)
+    r_slider = Horizontal_slider(commander=the_commander, motor_address=1, position_offset=0.152)
 
-    Direction_right = 0
-    Direction_left = 1
+    r_slider.ramp_type = "jerkfree"
+    r_slider.jerk = 5
 
-    horizontal_slider.distance = 1  # m
-    horizontal_slider.speed = 0.02     # m/s
-    horizontal_slider.direction = Direction_right     # 1 is out, 0 is in
-    horizontal_slider.mode = "external_reference_run"
-    horizontal_slider.ramp_type = "jerkfree"
-    horizontal_slider.jerk = 5
+    r_slider.reference_run()
 
-    horizontal_slider.run()
+    r_slider.mode = "absolute_positioning"
+    r_slider.absolute_position = 0.3  # m
+    r_slider.speed = 0.05     # m/s
 
-    time.sleep(60)
+    print("Position 0: ", r_slider.absolute_position)
 
-    horizontal_slider.mode = "relative_positioning"
-    horizontal_slider.direction = Direction_left
-    horizontal_slider.distance = 0.1  # m
-    horizontal_slider.speed = 0.05     # m/s
-
-    print("Step position 0: ", horizontal_slider.position)
-
-    horizontal_slider.run()
+    r_slider.run()
 
     time.sleep(1)
 
-    print("Step position 1: ", horizontal_slider.position)
+    print("Position 1: ", r_slider.absolute_position)
 
     time.sleep(10)
 
-    print("Step position 2: ", horizontal_slider.position)
+    print("Position 2: ", r_slider.absolute_position)
 
     # horizontal_slider.run()
 
