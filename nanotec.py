@@ -13,9 +13,8 @@ class Commander():
     def write_command(self, address, command):
         self.ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
         answer = self.ser.read_until(b'\r')  # read until '\r' appears
-
-        print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
-
+        answer = answer[1:].rstrip(b'\r')
+        # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
         return answer
 
 
@@ -53,7 +52,8 @@ class NanotecPd6Motor():
             "input_5": b':port_in_e',
             "input_6": b':port_in_f',
             "step_position": b'C',
-            "is_referenced": b':is_referenced'
+            "is_referenced": b':is_referenced',
+            "status": b'$'
         }
         self._ram_record = {
             "position_mode": 1,
@@ -141,9 +141,9 @@ class NanotecPd6Motor():
         position_answer_byte = self.commander.write_command(self.motor_address, command)
         position_answer_str = position_answer_byte.decode('UTF-8')
         if "+" in position_answer_str:
-            position_str = position_answer_str[3:]
-        else:
             position_str = position_answer_str[2:]
+        else:
+            position_str = position_answer_str[1:]
         return int(position_str)
     step_position = property(step_position, None)
 
@@ -156,6 +156,17 @@ class NanotecPd6Motor():
         else:
             return False
     is_referenced = property(is_referenced, None)
+
+    def is_ready(self):
+        command = self._command_letters["status"]
+        status_answer_byte = self.commander.write_command(self.motor_address, command)
+        status_answer_str = status_answer_byte.decode('UTF-8').split("$")
+        status_answer_int = int(status_answer_str[1])
+        if status_answer_int & 1:
+            return True
+        else:
+            return False
+    is_ready = property(is_ready, None)
 
     def run(self):
         # start the motor with the current settings
@@ -217,13 +228,13 @@ class Slider(LinearMotor):
 
         self.position_offset = position_offset
 
-    @property
-    def absolute_position(self):
+    def get_absolute_position(self):
         return self.position + self.position_offset
 
-    @absolute_position.setter
-    def absolute_position(self, value):
+    def set_absolute_position(self, value):
         self.distance = value - self.position_offset
+
+    absolute_position = property(get_absolute_position, set_absolute_position)
 
 
 class Horizontal_slider(Slider):
@@ -231,14 +242,14 @@ class Horizontal_slider(Slider):
     def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=2):
         super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
 
-    def direction(self, value):
-        if value == "Out":
-            Slider.direction = 1
-        elif value == "In":
-            Slider.direction = 0
-        else:
-            raise ValueError('Direction of horizontal slider needs to be in or out.')
-    direction = property(None, direction)
+    # def direction(self, value):
+    #     if value == "Out":
+    #         super().direction = 1
+    #     elif value == "In":
+    #         super().direction = 0
+    #     else:
+    #         raise ValueError('Direction of horizontal slider needs to be In or Out.')
+    # direction = property(None, direction)
 
     def reference_run(self):
         if not self.is_referenced:
@@ -246,7 +257,7 @@ class Horizontal_slider(Slider):
             self.mode = "external_reference_run"
             self.distance = 1       # m
             self.speed = 0.02       # m/s
-            self.direction = "In"
+            self.direction = 0
 
             self.run()
 

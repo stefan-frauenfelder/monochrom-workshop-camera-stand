@@ -70,63 +70,100 @@ def slider_speed(alpha, distance, radius):
     return nominator / denominator
 
 
-def horizontal_extension(alpha, distance, radius):
+def arm_extension(alpha, distance, radius):
 
     return math.sqrt(pow(distance, 2) + pow(radius, 2) - (2 * distance * radius * math.cos(alpha)))
 
 
-def beta(alpha, distance, radius, horizontal_extension):
+def beta(alpha, distance, radius, arm_extension):
 
-    return math.asin(math.sin(alpha) * radius / horizontal_extension)
+    return math.asin(math.sin(alpha) * radius / arm_extension)
 
 
-def angular_speed(alpha, distance, radius, horizontal_extension):
+def angular_speed(alpha, distance, radius, arm_extension):
 
     nominator = radius * math.cos(alpha)
 
-    denominator = horizontal_extension * math.sqrt(1 - pow(radius, 2) * pow(math.sin(alpha), 2) / pow(horizontal_extension, 2))
+    denominator = math.sqrt(pow(arm_extension, 2) - pow(radius, 2) * pow(math.sin(alpha), 2))
+
+    return nominator / denominator
+
+
+def angular_speed_simple(alpha, distance, radius):
+
+    nominator = math.copysign(1, math.sin(alpha)) * radius * (distance * math.cos(alpha) - radius)
+
+    denominator = -2 * distance * radius * math.cos(alpha) + pow(distance, 2) + pow(radius, 2)
+
+    return nominator / denominator
+
+
+def angular_speed_real(alpha, distance, radius):
+
+    nominator = math.sin(alpha) * abs(radius) * (distance * math.cos(alpha) - radius)
+
+    denominator = abs(math.sin(alpha)) * (-2 * distance * radius * math.cos(alpha) + pow(distance, 2) + pow(radius, 2))
 
     return nominator / denominator
 
 
 def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
 
-    horizontal_slider.mode = "speed_mode"
-    horizontal_slider.ramp_type = "jerkfree"
-    horizontal_slider.jerk = 5
+    print("Executing flat circle run")
+
+    file = open("flat_circle_run_export.csv", "wt")  # open for overwriting
+    file.write("Alpha,Calculated arm position,Actual arm position,Beta\n")
+    file.close()
+
+    arm.mode = "speed_mode"
+    arm.ramp_type = "jerkfree"
+    arm.jerk = 5
 
     rotor.mode = "speed_mode"
     rotor.ramp_type = "jerkfree"
     rotor.jerk = 1
 
-    max_speed = 0.1
-    max_rotor_speed = 0.1
+    max_speed = 0.3
+    max_rotor_speed = 0.3
 
     step_periode = 1.0 / step_frequency
 
-    num_steps_for_circle = int(duration / step_periode)
+    file = open("flat_circle_run_export.csv", "a")  # open for appending
 
-    for step in range(num_steps_for_circle):
+    start_time = time.time()
 
-        alpha = math.pi * 2 / num_steps_for_circle * step
+    first_loop = 1
+    t = 0
 
-        horizontal_extension_value = horizontal_extension(alpha, distance, radius)
+    while t < duration:
+
+        t = time.time() - start_time
+
+        alpha = math.pi * 2 * t / duration
+
+        arm_extension_value = arm_extension(alpha, distance, radius)
 
         horizontal_speed_scaling = slider_speed(alpha, distance, radius)
 
-        angular_speed_value = angular_speed(alpha, distance, radius, horizontal_extension_value)
+        angular_speed_value = angular_speed(alpha, distance, radius, arm_extension_value) - 0.06
 
-        beta_value = beta(alpha, distance, radius, horizontal_extension_value)
+        beta_value = beta(alpha, distance, radius, arm_extension_value)
 
-        print("Alpha: ", round(alpha, 2), ", Extension: ", round(horizontal_extension_value, 2), " Beta: ", round(beta_value, 2))
+        alpha_str = str(alpha)
+        calc_arm_pos_str = str(arm_extension_value)
+        act_arm_pos_str = str(arm.absolute_position)
+        calc_beta_str = str(beta_value)
+        angular_speed_value_real_str = str(angular_speed_value)
 
-        if horizontal_speed_scaling > 0:
-            horizontal_slider.direction = 1
+        file.write(alpha_str + ',' + calc_arm_pos_str + ',' + act_arm_pos_str + ',' + calc_beta_str + ',' + angular_speed_value_real_str + '\n')
+
+        if horizontal_speed_scaling >= 0:
+            arm.direction = 1
         else:
-            horizontal_slider.direction = 0
+            arm.direction = 0
             horizontal_speed_scaling = -horizontal_speed_scaling
 
-        horizontal_slider.speed = horizontal_speed_scaling * max_speed
+        arm.speed = horizontal_speed_scaling * max_speed
 
         if angular_speed_value > 0:
             rotor.direction = 0
@@ -136,13 +173,16 @@ def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
 
         rotor.speed = angular_speed_value * max_rotor_speed
 
-        if step == 0:
-            horizontal_slider.run()
+        if first_loop:
+            arm.run()
             rotor.run()
+        first_loop = 0
 
         time.sleep(step_periode)
 
-    horizontal_slider.stop()
+    file.close()
+
+    arm.stop()
     rotor.stop()
 
 
@@ -243,40 +283,27 @@ if __name__ == '__main__':
 
     # Horizontal
 
-    r_slider = Horizontal_slider(commander=the_commander, motor_address=1, position_offset=0.152)
+    arm = Horizontal_slider(commander=the_commander, motor_address=1, position_offset=0.152)
 
-    r_slider.ramp_type = "jerkfree"
-    r_slider.jerk = 5
+    arm.ramp_type = "jerkfree"
+    arm.jerk = 5
 
-    r_slider.reference_run()
+    print("Referencing arm...")
+    arm.reference_run()
 
-    r_slider.mode = "absolute_positioning"
-    r_slider.absolute_position = 0.3  # m
-    r_slider.speed = 0.05     # m/s
+    print("Arm now positioned at ", arm.absolute_position)
 
-    print("Position 0: ", r_slider.absolute_position)
+    arm.mode = "absolute_positioning"
+    arm.absolute_position = 0.3
+    arm.speed = 0.05
+    arm.run()
 
-    r_slider.run()
+    while not arm.is_ready:
+        time.sleep(1)
 
-    time.sleep(1)
-
-    print("Position 1: ", r_slider.absolute_position)
-
-    time.sleep(10)
-
-    print("Position 2: ", r_slider.absolute_position)
+    print("Arm now positioned at ", arm.absolute_position)
 
     # horizontal_slider.run()
-
-    # time.sleep(1)
-
-    # position = horizontal_slider.position
-
-    # print("Step position 2: ", position)
-
-    # time.sleep(1)
-
-    # position = horizontal_slider.position
 
     # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
     # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
@@ -297,36 +324,13 @@ if __name__ == '__main__':
 
     # Rotor
 
-    # radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
+    radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-    # rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution)
+    rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution)
+    rotor.ramp_type = "jerkfree"
+    rotor.jerk = 1
 
-    # # rotor.speed = 0.1     # rad/s
-    # rotor.relative_angle = 2 * math.pi     # rad
-    # rotor.direction = 1     # 1 is clockwise
-    # rotor.mode = "relative_positioning"
-    # rotor.ramp_type = "jerkfree"
-    # rotor.jerk = 1
-
-    # position = horizontal_slider.position
-
-    # print("Step position 1: ", position)
-
-    # horizontal_slider.run()
-
-    # time.sleep(1)
-
-    # position = horizontal_slider.position
-
-    # print("Step position 2: ", position)
-
-    # time.sleep(1)
-
-    # position = horizontal_slider.position
-
-    # print("Step position 2: ", position)
-
-    # flat_circle_run()
+    flat_circle_run()
 
     # horizontal_slider.run()
     # vertical_slider.run()
