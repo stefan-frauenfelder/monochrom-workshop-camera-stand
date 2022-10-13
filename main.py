@@ -61,53 +61,7 @@ def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
     vertical_slider.stop()
 
 
-def slider_speed(alpha, distance, radius):
-
-    nominator = distance * radius * math.sin(alpha)
-
-    denominator = math.sqrt(pow(distance, 2) + 2 * distance * radius * math.cos(alpha) + pow(radius, 2))
-
-    return nominator / denominator
-
-
-def arm_extension(alpha, distance, radius):
-
-    return math.sqrt(pow(distance, 2) + pow(radius, 2) - (2 * distance * radius * math.cos(alpha)))
-
-
-def beta(alpha, distance, radius, arm_extension):
-
-    return math.asin(math.sin(alpha) * radius / arm_extension)
-
-
-def angular_speed(alpha, distance, radius, arm_extension):
-
-    nominator = radius * math.cos(alpha)
-
-    denominator = math.sqrt(pow(arm_extension, 2) - pow(radius, 2) * pow(math.sin(alpha), 2))
-
-    return nominator / denominator
-
-
-def angular_speed_simple(alpha, distance, radius):
-
-    nominator = math.copysign(1, math.sin(alpha)) * radius * (distance * math.cos(alpha) - radius)
-
-    denominator = -2 * distance * radius * math.cos(alpha) + pow(distance, 2) + pow(radius, 2)
-
-    return nominator / denominator
-
-
-def angular_speed_real(alpha, distance, radius):
-
-    nominator = math.sin(alpha) * abs(radius) * (distance * math.cos(alpha) - radius)
-
-    denominator = abs(math.sin(alpha)) * (-2 * distance * radius * math.cos(alpha) + pow(distance, 2) + pow(radius, 2))
-
-    return nominator / denominator
-
-
-def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
+def flat_circle_run(distance=0.4, radius=0.03, duration=20, step_frequency=10):
 
     print("Executing flat circle run")
 
@@ -121,14 +75,9 @@ def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
 
     rotor.mode = "speed_mode"
     rotor.ramp_type = "jerkfree"
-    rotor.jerk = 1
-
-    max_speed = 0.3
-    max_rotor_speed = 0.3
+    rotor.jerk = 5
 
     step_periode = 1.0 / step_frequency
-
-    file = open("flat_circle_run_export.csv", "a")  # open for appending
 
     start_time = time.time()
 
@@ -141,29 +90,9 @@ def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
 
         alpha = math.pi * 2 * t / duration
 
-        arm_extension_value = arm_extension(alpha, distance, radius)
+        angular_speed_value = angular_speed_simple(alpha, distance, radius)
 
-        horizontal_speed_scaling = slider_speed(alpha, distance, radius)
-
-        angular_speed_value = angular_speed(alpha, distance, radius, arm_extension_value) - 0.06
-
-        beta_value = beta(alpha, distance, radius, arm_extension_value)
-
-        alpha_str = str(alpha)
-        calc_arm_pos_str = str(arm_extension_value)
-        act_arm_pos_str = str(arm.absolute_position)
-        calc_beta_str = str(beta_value)
-        angular_speed_value_real_str = str(angular_speed_value)
-
-        file.write(alpha_str + ',' + calc_arm_pos_str + ',' + act_arm_pos_str + ',' + calc_beta_str + ',' + angular_speed_value_real_str + '\n')
-
-        if horizontal_speed_scaling >= 0:
-            arm.direction = 1
-        else:
-            arm.direction = 0
-            horizontal_speed_scaling = -horizontal_speed_scaling
-
-        arm.speed = horizontal_speed_scaling * max_speed
+        arm.signed_speed = slider_speed(alpha, distance, radius)
 
         if angular_speed_value > 0:
             rotor.direction = 0
@@ -171,7 +100,7 @@ def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
             rotor.direction = 1
             angular_speed_value = -angular_speed_value
 
-        rotor.speed = angular_speed_value * max_rotor_speed
+        rotor.speed = angular_speed_value
 
         if first_loop:
             arm.run()
@@ -179,8 +108,6 @@ def flat_circle_run(distance=0.4, radius=0.1, duration=20, step_frequency=10):
         first_loop = 0
 
         time.sleep(step_periode)
-
-    file.close()
 
     arm.stop()
     rotor.stop()
@@ -253,6 +180,7 @@ if __name__ == '__main__':
     import RPi.GPIO as GPIO
 
     from nanotec import *
+    from camera_stand_math import *
 
     print(sys.executable)
     print(sys.version)
@@ -300,6 +228,8 @@ if __name__ == '__main__':
 
     while not arm.is_ready:
         time.sleep(1)
+
+    arm.stop()
 
     print("Arm now positioned at ", arm.absolute_position)
 

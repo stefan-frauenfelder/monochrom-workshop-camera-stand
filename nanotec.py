@@ -14,12 +14,12 @@ class Commander():
         self.ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
         answer = self.ser.read_until(b'\r')  # read until '\r' appears
         answer = answer[1:].rstrip(b'\r')
-        # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+        print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
         return answer
 
 
 class NanotecPd6Motor():
-    def __init__(self, commander, motor_address=1, steps_per_motor_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address=1, steps_per_motor_revolution=200, micro_steps_per_step=8):
         self.commander = commander
         self.motor_address = motor_address
         self.steps_per_motor_revolution = steps_per_motor_revolution
@@ -85,6 +85,7 @@ class NanotecPd6Motor():
             print('Initializing ' + key + ' of motor ' + str(self.motor_address) + ' to ' + str(self._ram_record[key]))
 
     def step_speed(self, value):
+        value = max(value, 1)
         command = self._command_letters["maximum_step_frequency"] + (str(value).encode('UTF-8'))
         self.commander.write_command(self.motor_address, command)
     step_speed = property(None, step_speed)
@@ -183,7 +184,7 @@ class NanotecPd6Motor():
 
 class LinearMotor(NanotecPd6Motor):
 
-    def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
         self.distance_per_motor_revolution = distance_per_motor_revolution
@@ -205,7 +206,7 @@ class LinearMotor(NanotecPd6Motor):
 
 class RotationMotor(NanotecPd6Motor):
 
-    def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
         self.angle_per_motor_revolution = angle_per_motor_revolution
@@ -223,7 +224,7 @@ class RotationMotor(NanotecPd6Motor):
 
 class Slider(LinearMotor):
 
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
 
         self.position_offset = position_offset
@@ -236,10 +237,20 @@ class Slider(LinearMotor):
 
     absolute_position = property(get_absolute_position, set_absolute_position)
 
+    def set_signed_speed(self, value):
+        if value >= 0:
+            self.direction = 1
+        else:
+            self.direction = 0
+            value = -value
+        self.speed = value
+
+    signed_speed = property(None, set_signed_speed)
+
 
 class Horizontal_slider(Slider):
 
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=2):
+    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
 
     # def direction(self, value):
