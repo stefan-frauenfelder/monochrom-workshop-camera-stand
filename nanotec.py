@@ -21,9 +21,10 @@ class Commander():
 class NanotecPd6Motor():
     def __init__(self, commander, motor_address=1, steps_per_motor_revolution=200, micro_steps_per_step=8):
         self.commander = commander
-        self.motor_address = motor_address
-        self.steps_per_motor_revolution = steps_per_motor_revolution
-        self.micro_steps_per_step = micro_steps_per_step
+        self._motor_address = motor_address
+        self._steps_per_motor_revolution = steps_per_motor_revolution
+        self._micro_steps_per_step = micro_steps_per_step
+        self._mode = 1
 
         self._command_letters = {
             "position_mode": b'p',
@@ -56,14 +57,14 @@ class NanotecPd6Motor():
             "status": b'$'
         }
         self._ram_record = {
-            "position_mode": 1,
-            "step_mode": self.micro_steps_per_step,   # number of microsteps per step
+            "position_mode": self._mode,
+            "step_mode": self._micro_steps_per_step,   # number of microsteps per step
             "travel_distance": 1,
             "initial_step_frequency": 1,
             "maximum_step_frequency": 1,
             "second_maximum_step_frequency": 1,
-            "acceleration_ramp": 10000,
-            "break_ramp": 10000,
+            "acceleration_ramp": 1000,
+            "break_ramp": 1000,
             "direction_of_rotation": 0,
             "reversal_of_direction_of_rotation_for_repeat_records": 0,
             "repetitions": 1,
@@ -81,41 +82,56 @@ class NanotecPd6Motor():
 
         for key in self._ram_record:
             command = self._command_letters[key] + (str(self._ram_record[key]).encode('UTF-8'))
-            self.commander.write_command(self.motor_address, command)
-            print('Initializing ' + key + ' of motor ' + str(self.motor_address) + ' to ' + str(self._ram_record[key]))
+            self.commander.write_command(self._motor_address, command)
+            print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._ram_record[key]))
 
     def step_speed(self, value):
         value = max(value, 1)
         command = self._command_letters["maximum_step_frequency"] + (str(value).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
+        self.commander.write_command(self._motor_address, command)
     step_speed = property(None, step_speed)
 
     def step_distance(self, value):
         command = self._command_letters["travel_distance"] + (str(value).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
+        self.commander.write_command(self._motor_address, command)
     step_distance = property(None, step_distance)
 
     def direction(self, value):
         command = self._command_letters["direction_of_rotation"] + (str(value).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
+        self.commander.write_command(self._motor_address, command)
     direction = property(None, direction)
 
+    @property
     def mode(self, value):
         if value == "relative_positioning":
             number = 1
         elif value == "absolute_positioning":
             number = 2
-        elif value == "joystick_mode":
-            number = 12
-        elif value == "speed_mode":
-            number = 5
         elif value == "external_reference_run":
             number = 4
+        elif value == "speed_mode":
+            number = 5
+        elif value == "joystick_mode":
+            number = 12
         else:
             raise ValueError('Unsupported mode.')
         command = self._command_letters["position_mode"] + (str(number).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
-    mode = property(None, mode)
+        self.commander.write_command(self._motor_address, command)
+        self._mode = value
+
+    @mode.setter
+    def mode(self):
+        return self._mode
+
+    @property
+    def micro_steps_per_step(self, value):
+        command = self._command_letters["step_mode"] + (str(value).encode('UTF-8'))
+        self.commander.write_command(self._motor_address, command)
+        self._micro_steps_per_step = value
+
+    @micro_steps_per_step.setter
+    def micro_steps_per_step(self):
+        return self._micro_steps_per_step
 
     def ramp_type(self, value):
         if value == "trapezoid":
@@ -127,59 +143,67 @@ class NanotecPd6Motor():
         else:
             number = 0
         command = self._command_letters["ramp_type"] + (str(number).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
+        self.commander.write_command(self._motor_address, command)
     ramp_type = property(None, ramp_type)
 
     def jerk(self, value):
         command = self._command_letters["maximum_jerk_for_acceleration_ramp"] + (str(value).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
+        self.commander.write_command(self._motor_address, command)
         command = self._command_letters["maximum_jerk_for_break_ramp"] + (str(value).encode('UTF-8'))
-        self.commander.write_command(self.motor_address, command)
+        self.commander.write_command(self._motor_address, command)
     jerk = property(None, jerk)
 
+    @property
     def step_position(self):
         command = self._command_letters["step_position"]
-        position_answer_byte = self.commander.write_command(self.motor_address, command)
+        position_answer_byte = self.commander.write_command(self._motor_address, command)
         position_answer_str = position_answer_byte.decode('UTF-8')
         if "+" in position_answer_str:
             position_str = position_answer_str[2:]
         else:
             position_str = position_answer_str[1:]
         return int(position_str)
-    step_position = property(step_position, None)
 
+    @property
     def is_referenced(self):
         command = self._command_letters["is_referenced"]
-        position_answer_byte = self.commander.write_command(self.motor_address, command)
+        position_answer_byte = self.commander.write_command(self._motor_address, command)
         position_answer_str = position_answer_byte.decode('UTF-8')
         if "1" in position_answer_str[1:]:
             return True
         else:
             return False
-    is_referenced = property(is_referenced, None)
 
+    @property
     def is_ready(self):
         command = self._command_letters["status"]
-        status_answer_byte = self.commander.write_command(self.motor_address, command)
+        status_answer_byte = self.commander.write_command(self._motor_address, command)
         status_answer_str = status_answer_byte.decode('UTF-8').split("$")
         status_answer_int = int(status_answer_str[1])
         if status_answer_int & 1:
             return True
         else:
             return False
-    is_ready = property(is_ready, None)
+
+    @property
+    def motor_address(self):
+        return self._motor_address
+
+    @property
+    def steps_per_motor_revolution(self):
+        return self._steps_per_motor_revolution
 
     def run(self):
         # start the motor with the current settings
-        self.commander.write_command(self.motor_address, b'A')
+        self.commander.write_command(self._motor_address, b'A')
 
     def stop(self):
         # stop the motor with the current ramp
-        self.commander.write_command(self.motor_address, b'S1')
+        self.commander.write_command(self._motor_address, b'S1')
 
     def immediate_stop(self):
         # stop the motor with the current stop ramp
-        self.commander.write_command(self.motor_address, b'S0')
+        self.commander.write_command(self._motor_address, b'S0')
 
 
 class LinearMotor(NanotecPd6Motor):
@@ -187,21 +211,21 @@ class LinearMotor(NanotecPd6Motor):
     def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
-        self.distance_per_motor_revolution = distance_per_motor_revolution
+        self._distance_per_motor_revolution = distance_per_motor_revolution
 
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
-        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.distance_per_motor_revolution)
+        self.step_distance = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._distance_per_motor_revolution)
     distance = property(None, distance)
 
     def speed(self, value):
         # convert from physical distance in meters per second to (micro) steps per second of the motor
-        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.distance_per_motor_revolution)
+        self.step_speed = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._distance_per_motor_revolution)
     speed = property(None, speed)
 
     @property
     def position(self):
-        return float(self.step_position) / self.micro_steps_per_step / self.steps_per_motor_revolution * self.distance_per_motor_revolution
+        return float(self.step_position) / self._micro_steps_per_step / self._steps_per_motor_revolution * self._distance_per_motor_revolution
 
 
 class RotationMotor(NanotecPd6Motor):
@@ -209,16 +233,16 @@ class RotationMotor(NanotecPd6Motor):
     def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
-        self.angle_per_motor_revolution = angle_per_motor_revolution
+        self._angle_per_motor_revolution = angle_per_motor_revolution
 
     def angle(self, value):
         # convert from physical angle in radians to (micro) steps of the motor
-        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.angle_per_motor_revolution)
+        self.step_distance = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     angle = property(None, angle)
 
     def speed(self, value):
         # convert from physical speed in radians per second to (micro) steps per second of the motor
-        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self.angle_per_motor_revolution)
+        self.step_speed = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     speed = property(None, speed)
 
 
@@ -264,6 +288,10 @@ class Horizontal_slider(Slider):
 
     def reference_run(self):
         if not self.is_referenced:
+
+            # store values to reapply later
+            previous_mode = self.mode
+            previous_micro_steps_per_step = self._micro_steps_per_step
 
             self.mode = "external_reference_run"
             self.distance = 1       # m
