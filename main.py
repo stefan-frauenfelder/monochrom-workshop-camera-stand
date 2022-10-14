@@ -61,13 +61,7 @@ def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
     vertical_slider.stop()
 
 
-def flat_circle_run(distance=0.4, radius=0.03, duration=20, step_frequency=10):
-
-    print("Executing flat circle run")
-
-    file = open("flat_circle_run_export.csv", "wt")  # open for overwriting
-    file.write("Alpha,Calculated arm position,Actual arm position,Beta\n")
-    file.close()
+def flat_circle_run(distance=0.5, radius=0.02, duration=20, step_frequency=10):
 
     arm.mode = "speed_mode"
     arm.ramp_type = "jerkfree"
@@ -90,9 +84,9 @@ def flat_circle_run(distance=0.4, radius=0.03, duration=20, step_frequency=10):
 
         alpha = math.pi * 2 * t / duration
 
-        angular_speed_value = angular_speed_simple(alpha, distance, radius)
+        angular_speed_value = angular_speed(alpha, distance, radius)
 
-        arm.signed_speed = slider_speed(alpha, distance, radius)
+        arm.signed_speed = arm_extension_speed(alpha, distance, radius)
 
         if angular_speed_value > 0:
             rotor.direction = 0
