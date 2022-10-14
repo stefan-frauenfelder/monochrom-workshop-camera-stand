@@ -24,7 +24,6 @@ class NanotecPd6Motor():
         self._motor_address = motor_address
         self._steps_per_motor_revolution = steps_per_motor_revolution
         self._micro_steps_per_step = micro_steps_per_step
-        self._mode = 1
 
         self._command_letters = {
             "position_mode": b'p',
@@ -33,8 +32,8 @@ class NanotecPd6Motor():
             "initial_step_frequency": b'u',
             "maximum_step_frequency": b'o',
             "second_maximum_step_frequency": b'n',
-            "acceleration_ramp": b':accel',
-            "break_ramp": b':decel',
+            "acceleration_ramp": b'b',
+            "break_ramp": b'B',
             "direction_of_rotation": b'd',
             "reversal_of_direction_of_rotation_for_repeat_records": b't',
             "repetitions": b'W',
@@ -57,14 +56,13 @@ class NanotecPd6Motor():
             "status": b'$'
         }
         self._ram_record = {
-            "position_mode": self._mode,
             "step_mode": self._micro_steps_per_step,   # number of microsteps per step
             "travel_distance": 1,
             "initial_step_frequency": 1,
             "maximum_step_frequency": 1,
             "second_maximum_step_frequency": 1,
-            "acceleration_ramp": 1000,
-            "break_ramp": 1000,
+            "acceleration_ramp": 10000,  # irrelevantly high, maximum jerk is limiting factor instead
+            "break_ramp": 10000,         # irrelevantly high, maximum jerk is limiting factor instead
             "direction_of_rotation": 0,
             "reversal_of_direction_of_rotation_for_repeat_records": 0,
             "repetitions": 1,
@@ -85,6 +83,9 @@ class NanotecPd6Motor():
             self.commander.write_command(self._motor_address, command)
             print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._ram_record[key]))
 
+        self.mode = "relative_positioning"
+        self.ramp_type = "jerkfree"
+
     def step_speed(self, value):
         value = max(value, 1)
         command = self._command_letters["maximum_step_frequency"] + (str(value).encode('UTF-8'))
@@ -102,6 +103,10 @@ class NanotecPd6Motor():
     direction = property(None, direction)
 
     @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
     def mode(self, value):
         if value == "relative_positioning":
             number = 1
@@ -119,19 +124,15 @@ class NanotecPd6Motor():
         self.commander.write_command(self._motor_address, command)
         self._mode = value
 
-    @mode.setter
-    def mode(self):
-        return self._mode
-
     @property
+    def micro_steps_per_step(self):
+        return self._micro_steps_per_step
+
+    @micro_steps_per_step.setter
     def micro_steps_per_step(self, value):
         command = self._command_letters["step_mode"] + (str(value).encode('UTF-8'))
         self.commander.write_command(self._motor_address, command)
         self._micro_steps_per_step = value
-
-    @micro_steps_per_step.setter
-    def micro_steps_per_step(self):
-        return self._micro_steps_per_step
 
     def ramp_type(self, value):
         if value == "trapezoid":
@@ -215,17 +216,17 @@ class LinearMotor(NanotecPd6Motor):
 
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
-        self.step_distance = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._distance_per_motor_revolution)
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._distance_per_motor_revolution)
     distance = property(None, distance)
 
     def speed(self, value):
         # convert from physical distance in meters per second to (micro) steps per second of the motor
-        self.step_speed = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._distance_per_motor_revolution)
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._distance_per_motor_revolution)
     speed = property(None, speed)
 
     @property
     def position(self):
-        return float(self.step_position) / self._micro_steps_per_step / self._steps_per_motor_revolution * self._distance_per_motor_revolution
+        return float(self.step_position) / self.micro_steps_per_step / self.steps_per_motor_revolution * self._distance_per_motor_revolution
 
 
 class RotationMotor(NanotecPd6Motor):
@@ -237,12 +238,12 @@ class RotationMotor(NanotecPd6Motor):
 
     def angle(self, value):
         # convert from physical angle in radians to (micro) steps of the motor
-        self.step_distance = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     angle = property(None, angle)
 
     def speed(self, value):
         # convert from physical speed in radians per second to (micro) steps per second of the motor
-        self.step_speed = int(self._micro_steps_per_step * self._steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     speed = property(None, speed)
 
 
@@ -251,13 +252,13 @@ class Slider(LinearMotor):
     def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
         super().__init__(commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
 
-        self.position_offset = position_offset
+        self._position_offset = position_offset
 
     def get_absolute_position(self):
-        return self.position + self.position_offset
+        return self.position + self._position_offset
 
     def set_absolute_position(self, value):
-        self.distance = value - self.position_offset
+        self.distance = value - self._position_offset
 
     absolute_position = property(get_absolute_position, set_absolute_position)
 
@@ -291,11 +292,12 @@ class Horizontal_slider(Slider):
 
             # store values to reapply later
             previous_mode = self.mode
-            previous_micro_steps_per_step = self._micro_steps_per_step
+            previous_micro_steps_per_step = self.micro_steps_per_step
 
             self.mode = "external_reference_run"
-            self.distance = 1       # m
-            self.speed = 0.02       # m/s
+            self.micro_steps_per_step = 1   # full step mode
+            self.distance = 1               # m
+            self.speed = 0.02               # m/s
             self.direction = 0
 
             self.run()
@@ -303,4 +305,8 @@ class Horizontal_slider(Slider):
             while not self.is_referenced:
                 time.sleep(1)
 
-            time.sleep(1)
+            time.sleep(0.5)
+
+            # restore previous values
+            self.mode = previous_mode
+            self.micro_steps_per_step = previous_micro_steps_per_step
