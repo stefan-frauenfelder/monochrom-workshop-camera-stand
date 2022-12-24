@@ -1,4 +1,8 @@
 import time
+from enum import Enum
+
+LinearDirection = Enum('LinearDirection', 'positive negative')
+RotationalDirection = Enum('RotationalDirection', 'cw ccw')
 
 
 class Commander():
@@ -97,10 +101,10 @@ class NanotecPd6Motor():
         self.commander.write_command(self._motor_address, command)
     step_distance = property(None, step_distance)
 
-    def direction(self, value):
+    def step_direction(self, value):
         command = self._command_letters["direction_of_rotation"] + (str(value).encode('UTF-8'))
         self.commander.write_command(self._motor_address, command)
-    direction = property(None, direction)
+    step_direction = property(None, step_direction)
 
     @property
     def mode(self):
@@ -209,48 +213,60 @@ class NanotecPd6Motor():
 
 class LinearMotor(NanotecPd6Motor):
 
-    def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
+    def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
         self._distance_per_motor_revolution = distance_per_motor_revolution
+        self._direction_modifier = direction_modifier
 
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
         self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._distance_per_motor_revolution)
     distance = property(None, distance)
 
-    def speed(self, value):
-        # convert from physical distance in meters per second to (micro) steps per second of the motor
+    def direction(self, value):
+        # set the turning direction of the motor according to the cw or ccw input direction and the direction modifier
+        if value == LinearDirection.positive:
+            if self._direction_modifier == "default":
+                self.step_direction = 0
+            elif self._direction_modifier == "inverse":
+                self.step_direction = 1
+            else:
+                raise ValueError('Direction modifier needs to be default or inverse.')
+        elif value == LinearDirection.negative:
+            if self._direction_modifier == "default":
+                self.step_direction = 1
+            elif self._direction_modifier == "inverse":
+                self.step_direction = 0
+            else:
+                raise ValueError('Direction modifier needs to be default or inverse.')
+        else:
+            raise ValueError('Direction of linear motor needs to be positive or negative.')
+    direction = property(None, direction)
+
+    def absolute_speed(self, value):
+        # convert from absolute (always positive) physical speed in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._distance_per_motor_revolution)
-    speed = property(None, speed)
+    absolute_speed = property(None, absolute_speed)
+
+    def signed_speed(self, value):
+        if value >= 0:
+            self.direction = LinearDirection.positive
+        else:
+            self.direction = LinearDirection.negative
+            value = -value
+        self.absolute_speed = value
+    signed_speed = property(None, signed_speed)
 
     @property
     def position(self):
         return float(self.step_position) / self.micro_steps_per_step / self.steps_per_motor_revolution * self._distance_per_motor_revolution
 
 
-class RotationMotor(NanotecPd6Motor):
-
-    def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8):
-        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
-
-        self._angle_per_motor_revolution = angle_per_motor_revolution
-
-    def angle(self, value):
-        # convert from physical angle in radians to (micro) steps of the motor
-        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
-    angle = property(None, angle)
-
-    def speed(self, value):
-        # convert from physical speed in radians per second to (micro) steps per second of the motor
-        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
-    speed = property(None, speed)
-
-
 class Slider(LinearMotor):
 
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
-        super().__init__(commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
+        super().__init__(commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step, direction_modifier)
 
         self._position_offset = position_offset
 
@@ -262,32 +278,7 @@ class Slider(LinearMotor):
 
     absolute_position = property(get_absolute_position, set_absolute_position)
 
-    def set_signed_speed(self, value):
-        if value >= 0:
-            self.direction = 1
-        else:
-            self.direction = 0
-            value = -value
-        self.speed = value
-
-    signed_speed = property(None, set_signed_speed)
-
-
-class Horizontal_slider(Slider):
-
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8):
-        super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step)
-
-    # def direction(self, value):
-    #     if value == "Out":
-    #         super().direction = 1
-    #     elif value == "In":
-    #         super().direction = 0
-    #     else:
-    #         raise ValueError('Direction of horizontal slider needs to be In or Out.')
-    # direction = property(None, direction)
-
-    def reference_run(self):
+    def reference_run(self, ref_direction):
         if not self.is_referenced:
 
             # store values to reapply later
@@ -297,8 +288,8 @@ class Horizontal_slider(Slider):
             self.mode = "external_reference_run"
             self.micro_steps_per_step = 1   # full step mode
             self.distance = 1               # m
-            self.speed = 0.02               # m/s
-            self.direction = 0
+            self.absolute_speed = 0.02               # m/s
+            self.direction = ref_direction
 
             self.run()
 
@@ -310,3 +301,62 @@ class Horizontal_slider(Slider):
             # restore previous values
             self.mode = previous_mode
             self.micro_steps_per_step = previous_micro_steps_per_step
+
+
+class HorizontalSlider(Slider):
+
+    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
+        super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step, direction_modifier)
+
+    # def direction(self, value):
+    #     if value == "Out":
+    #         super().direction = 1
+    #     elif value == "In":
+    #         super().direction = 0
+    #     else:
+    #         raise ValueError('Direction of horizontal slider needs to be In or Out.')
+    # direction = property(None, direction)
+
+
+class VerticalSlider(Slider):
+
+    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
+        super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step, direction_modifier)
+
+
+class RotationMotor(NanotecPd6Motor):
+
+    def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
+        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
+
+        self._angle_per_motor_revolution = angle_per_motor_revolution
+
+    def angle(self, value):
+        # convert from physical angle in radians to (micro) steps of the motor
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+    angle = property(None, angle)
+
+    def direction(self, value):
+        # set the turning direction of the motor according to the positive or negative input direction and the direction modifier
+        if value == RotationalDirection.cw:
+            if self._direction_modifier == "default":
+                self.step_direction = 0
+            elif self._direction_modifier == "inverse":
+                self.step_direction = 1
+            else:
+                raise ValueError('Direction modifier needs to be default or inverse.')
+        elif value == RotationalDirection.ccw:
+            if self._direction_modifier == "default":
+                self.step_direction = 1
+            elif self._direction_modifier == "inverse":
+                self.step_direction = 0
+            else:
+                raise ValueError('Direction modifier needs to be default or inverse.')
+        else:
+            raise ValueError('Direction of linear motor needs to be cw or ccw.')
+    direction = property(None, direction)
+
+    def speed(self, value):
+        # convert from physical speed in radians per second to (micro) steps per second of the motor
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+    speed = property(None, speed)

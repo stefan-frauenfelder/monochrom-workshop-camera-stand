@@ -1,64 +1,64 @@
 
 
-def linear_ramp(LinearMotor, speed_step_frequency=10, cycle_duration=8, max_speed=0.1):
+# def linear_ramp(LinearMotor, speed_step_frequency=10, cycle_duration=8, max_speed=0.1):
 
-    speed_step_periode = 1.0 / speed_step_frequency
+#     speed_step_periode = 1.0 / speed_step_frequency
 
-    num_speed_steps = int((cycle_duration / 4.0) / speed_step_periode)
+#     num_speed_steps = int((cycle_duration / 4.0) / speed_step_periode)
 
-    horizontal_slider.run()
+#     horizontal_slider.run()
 
-    for half_cycle in range(2):
+#     for half_cycle in range(2):
 
-        horizontal_slider.direction = half_cycle
+#         horizontal_slider.direction = half_cycle
 
-        for speed_step in range(num_speed_steps):
-            horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
-            time.sleep(speed_step_periode)
+#         for speed_step in range(num_speed_steps):
+#             horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
+#             time.sleep(speed_step_periode)
 
-        for speed_step in range(num_speed_steps, 0, -1):
-            horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
-            time.sleep(speed_step_periode)
+#         for speed_step in range(num_speed_steps, 0, -1):
+#             horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
+#             time.sleep(speed_step_periode)
 
-    horizontal_slider.stop()
+#     horizontal_slider.stop()
 
 
-def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
+# def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
 
-    step_periode = 1.0 / step_frequency
+#     step_periode = 1.0 / step_frequency
 
-    num_steps_for_cycle = int(cycle_duration / step_periode)
+#     num_steps_for_cycle = int(cycle_duration / step_periode)
 
-    horizontal_slider.run()
-    vertical_slider.run()
+#     horizontal_slider.run()
+#     vertical_slider.run()
 
-    for step in range(num_steps_for_cycle):
+#     for step in range(num_steps_for_cycle):
 
-        angle = step / num_steps_for_cycle * 2.0 * math.pi
+#         angle = step / num_steps_for_cycle * 2.0 * math.pi
 
-        horizontal_speed_scaling = math.sin(angle)
-        vertical_speed_scaling = math.cos(angle)
+#         horizontal_speed_scaling = math.sin(angle)
+#         vertical_speed_scaling = math.cos(angle)
 
-        if horizontal_speed_scaling > 0:
-            horizontal_slider.direction = 0
-        else:
-            horizontal_slider.direction = 1
-            horizontal_speed_scaling = -horizontal_speed_scaling
+#         if horizontal_speed_scaling > 0:
+#             horizontal_slider.direction = 0
+#         else:
+#             horizontal_slider.direction = 1
+#             horizontal_speed_scaling = -horizontal_speed_scaling
 
-        horizontal_slider.speed = horizontal_speed_scaling * max_speed
+#         horizontal_slider.speed = horizontal_speed_scaling * max_speed
 
-        if vertical_speed_scaling > 0:
-            vertical_slider.direction = 0
-        else:
-            vertical_slider.direction = 1
-            vertical_speed_scaling = -vertical_speed_scaling
+#         if vertical_speed_scaling > 0:
+#             vertical_slider.direction = 0
+#         else:
+#             vertical_slider.direction = 1
+#             vertical_speed_scaling = -vertical_speed_scaling
 
-        vertical_slider.speed = vertical_speed_scaling * max_speed
+#         vertical_slider.speed = vertical_speed_scaling * max_speed
 
-        time.sleep(step_periode)
+#         time.sleep(step_periode)
 
-    horizontal_slider.stop()
-    vertical_slider.stop()
+#     horizontal_slider.stop()
+#     vertical_slider.stop()
 
 
 def flat_circle_run(distance=0.5, radius=0.02, duration=20, step_frequency=10):
@@ -205,56 +205,75 @@ if __name__ == '__main__':
 
     # Horizontal
 
-    arm = Horizontal_slider(commander=the_commander, motor_address=1, position_offset=0.152)
+    arm = HorizontalSlider(commander=the_commander, motor_address=1, position_offset=0.152, direction_modifier="inverse")
 
     arm.ramp_type = "jerkfree"
     arm.jerk = 5
 
     print("Referencing arm...")
-    arm.reference_run()
+    arm.reference_run(ref_direction=LinearDirection.negative)
 
     print("Arm now positioned at ", arm.absolute_position)
 
     arm.mode = "absolute_positioning"
     arm.absolute_position = 0.3
-    arm.speed = 0.05
+    arm.absolute_speed = 0.05
     arm.run()
-
     while not arm.is_ready:
         time.sleep(1)
-
     arm.stop()
 
     print("Arm now positioned at ", arm.absolute_position)
+    time.sleep(1)
 
     # horizontal_slider.run()
 
     # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
     # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
 
-    # # Vertical
+    # Vertical
 
-    # vertical_slider = LinearMotor(commander=the_commander, motor_address=2, distance_per_motor_revolution=0.12)
+    lift = VerticalSlider(commander=the_commander, motor_address=2, position_offset=-0.740, direction_modifier="default")
 
     # Direction_up = 0
     # Direction_down = 1
 
-    # vertical_slider.distance = 0.6
-    # vertical_slider.speed = 0.06   # m/s
-    # vertical_slider.direction = Direction_up     # 1 is out, 0 is in
-    # vertical_slider.mode = "relative_positioning"
-    # vertical_slider.ramp_type = "jerkfree"
-    # vertical_slider.jerk = 5
+    # lift.distance = 0.6
+    # lift.speed = 0.06   # m/s
+    # lift.direction = Direction_up     # 1 is out, 0 is in
+    # lift.mode = "relative_positioning"
+    # lift.ramp_type = "jerkfree"
+    # lift.jerk = 5
+
+    lift.ramp_type = "jerkfree"
+    lift.jerk = 5
+
+    print("Referencing lift...")
+    lift.reference_run(ref_direction=LinearDirection.negative)
+
+    print("lift now positioned at ", lift.absolute_position)
+
+    lift.mode = "absolute_positioning"
+    lift.absolute_position = -1.00       # meters above floor
+    lift.absolute_speed = 0.05
+    lift.run()
+
+    while not lift.is_ready:
+        time.sleep(1)
+
+    lift.stop()
+
+    print("Arm now positioned at ", lift.absolute_position)
 
     # Rotor
 
-    radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
+    # radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-    rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution)
-    rotor.ramp_type = "jerkfree"
-    rotor.jerk = 1
+    # rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution, direction_modifier="default")
+    # rotor.ramp_type = "jerkfree"
+    # rotor.jerk = 1
 
-    flat_circle_run()
+    # flat_circle_run()
 
     # horizontal_slider.run()
     # vertical_slider.run()
