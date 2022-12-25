@@ -203,21 +203,20 @@ if __name__ == '__main__':
     the_commander = Commander()  # create the singleton commander
     the_commander.ser = serial_port  # hand the serial port to the commander to use
 
-    # Horizontal
+    # Horizontal axis
 
-    arm = HorizontalSlider(commander=the_commander, motor_address=1, position_offset=0.152, direction_modifier="inverse")
+    arm = LocatedLinearStepper(commander=the_commander, motor_address=1, inverse_direction=True, position_offset=0.152)
 
     arm.ramp_type = "jerkfree"
     arm.jerk = 5
 
     print("Referencing arm...")
-    arm.reference_run(ref_direction=LinearDirection.negative)
+    arm.reference_run()
 
     print("Arm now positioned at ", arm.absolute_position)
 
-    arm.mode = "absolute_positioning"
     arm.absolute_position = 0.3
-    arm.absolute_speed = 0.05
+    arm.signed_speed = 0.05
     arm.run()
     while not arm.is_ready:
         time.sleep(1)
@@ -231,31 +230,20 @@ if __name__ == '__main__':
     # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
     # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
 
-    # Vertical
+    # Vertical axis
 
-    lift = VerticalSlider(commander=the_commander, motor_address=2, position_offset=-0.740, direction_modifier="default")
-
-    # Direction_up = 0
-    # Direction_down = 1
-
-    # lift.distance = 0.6
-    # lift.speed = 0.06   # m/s
-    # lift.direction = Direction_up     # 1 is out, 0 is in
-    # lift.mode = "relative_positioning"
-    # lift.ramp_type = "jerkfree"
-    # lift.jerk = 5
+    lift = LocatedLinearStepper(commander=the_commander, motor_address=2, inverse_direction=False, position_offset=0.740)
 
     lift.ramp_type = "jerkfree"
     lift.jerk = 5
 
     print("Referencing lift...")
-    lift.reference_run(ref_direction=LinearDirection.negative)
+    lift.reference_run()
 
     print("lift now positioned at ", lift.absolute_position)
 
-    lift.mode = "absolute_positioning"
-    lift.absolute_position = -1.00       # meters above floor
-    lift.absolute_speed = 0.05
+    lift.absolute_position = 1.00       # meters above floor
+    lift.signed_speed = 0.05
     lift.run()
 
     while not lift.is_ready:

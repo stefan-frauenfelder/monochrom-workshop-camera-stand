@@ -22,7 +22,7 @@ class Commander():
         return answer
 
 
-class NanotecPd6Motor():
+class NanotecStepper():
     def __init__(self, commander, motor_address=1, steps_per_motor_revolution=200, micro_steps_per_step=8):
         self.commander = commander
         self._motor_address = motor_address
@@ -91,7 +91,10 @@ class NanotecPd6Motor():
         self.ramp_type = "jerkfree"
 
     def step_speed(self, value):
-        value = max(value, 1)
+        print('Entering step_speed setter with value ' + str(value))
+        if value < 1:
+            print('WARNING: Increasing speed value of ' + str(value) + ' to 1.')
+            value = max(value, 1)
         command = self._command_letters["maximum_step_frequency"] + (str(value).encode('UTF-8'))
         self.commander.write_command(self._motor_address, command)
     step_speed = property(None, step_speed)
@@ -211,13 +214,12 @@ class NanotecPd6Motor():
         self.commander.write_command(self._motor_address, b'S0')
 
 
-class LinearMotor(NanotecPd6Motor):
+class PhysicalLinearStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
+    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
         self._distance_per_motor_revolution = distance_per_motor_revolution
-        self._direction_modifier = direction_modifier
 
     def distance(self, value):
         # convert from physical distance in meters to (micro) steps of the motor
@@ -227,58 +229,94 @@ class LinearMotor(NanotecPd6Motor):
     def direction(self, value):
         # set the turning direction of the motor according to the cw or ccw input direction and the direction modifier
         if value == LinearDirection.positive:
-            if self._direction_modifier == "default":
-                self.step_direction = 0
-            elif self._direction_modifier == "inverse":
-                self.step_direction = 1
-            else:
-                raise ValueError('Direction modifier needs to be default or inverse.')
+            self.step_direction = 0
         elif value == LinearDirection.negative:
-            if self._direction_modifier == "default":
-                self.step_direction = 1
-            elif self._direction_modifier == "inverse":
-                self.step_direction = 0
-            else:
-                raise ValueError('Direction modifier needs to be default or inverse.')
+            self.step_direction = 1
         else:
             raise ValueError('Direction of linear motor needs to be positive or negative.')
     direction = property(None, direction)
 
-    def absolute_speed(self, value):
+    def speed(self, value):
+        print('Entering speed setter with value ' + str(value))
         # convert from absolute (always positive) physical speed in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._distance_per_motor_revolution)
-    absolute_speed = property(None, absolute_speed)
-
-    def signed_speed(self, value):
-        if value >= 0:
-            self.direction = LinearDirection.positive
-        else:
-            self.direction = LinearDirection.negative
-            value = -value
-        self.absolute_speed = value
-    signed_speed = property(None, signed_speed)
+    speed = property(None, speed)
 
     @property
     def position(self):
         return float(self.step_position) / self.micro_steps_per_step / self.steps_per_motor_revolution * self._distance_per_motor_revolution
 
 
-class Slider(LinearMotor):
+class OrientedLinearStepper(PhysicalLinearStepper):
 
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
-        super().__init__(commander, motor_address, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step, direction_modifier)
+    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False):
+        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
 
-        self._position_offset = position_offset
+        self._inverse_direction = inverse_direction
 
-    def get_absolute_position(self):
-        return self.position + self._position_offset
+    def signed_distance(self, value):
+        if not self._inverse_direction:  # direction is default
+            if value >= 0:
+                self.direction = LinearDirection.positive
+                self.distance = value
+            else:
+                self.direction = LinearDirection.negative
+                self.distance = -value
+        else:  # direction is inverse
+            if value >= 0:
+                self.direction = LinearDirection.negative
+                self.distance = value
+            else:
+                self.direction = LinearDirection.positive
+                self.distance = -value
+    signed_distance = property(None, signed_distance)
 
-    def set_absolute_position(self, value):
-        self.distance = value - self._position_offset
+    # def direction(self, value):
+    #     # set the turning direction of the motor according to the cw or ccw input direction and the direction modifier
+    #     if value == LinearDirection.positive:
+    #         if self._direction_modifier == "default":
+    #             self.step_direction = 0
+    #         elif self._direction_modifier == "inverse":
+    #             self.step_direction = 1
+    #         else:
+    #             raise ValueError('Direction modifier needs to be default or inverse.')
+    #     elif value == LinearDirection.negative:
+    #         if self._direction_modifier == "default":
+    #             self.step_direction = 1
+    #         elif self._direction_modifier == "inverse":
+    #             self.step_direction = 0
+    #         else:
+    #             raise ValueError('Direction modifier needs to be default or inverse.')
+    #     else:
+    #         raise ValueError('Direction of linear motor needs to be positive or negative.')
+    # direction = property(None, direction)
 
-    absolute_position = property(get_absolute_position, set_absolute_position)
+    def signed_speed(self, value):
+        if not self._inverse_direction:  # direction is default
+            if value >= 0:
+                self.direction = LinearDirection.positive
+                self.speed = value
+            else:
+                self.direction = LinearDirection.negative
+                self.speed = -value
+        else:  # direction is inverse
+            if value >= 0:
+                self.direction = LinearDirection.negative
+                self.speed = value
+            else:
+                self.direction = LinearDirection.positive
+                self.speed = -value
+    signed_speed = property(None, signed_speed)
 
-    def reference_run(self, ref_direction):
+    def signed_position(self):
+        if not self._inverse_direction:  # direction is default
+            return self.position
+        else:  # direction is inverse
+            return -self.position
+    signed_position = property(signed_position, None)
+
+    # utility functions
+    def reference_run(self):
         if not self.is_referenced:
 
             # store values to reapply later
@@ -288,8 +326,7 @@ class Slider(LinearMotor):
             self.mode = "external_reference_run"
             self.micro_steps_per_step = 1   # full step mode
             self.distance = 1               # m
-            self.absolute_speed = 0.02               # m/s
-            self.direction = ref_direction
+            self.signed_speed = -0.02       # m/s
 
             self.run()
 
@@ -303,60 +340,55 @@ class Slider(LinearMotor):
             self.micro_steps_per_step = previous_micro_steps_per_step
 
 
-class HorizontalSlider(Slider):
+class LocatedLinearStepper(OrientedLinearStepper):
 
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
-        super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step, direction_modifier)
+    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, position_offset=0):
+        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction)
 
-    # def direction(self, value):
-    #     if value == "Out":
-    #         super().direction = 1
-    #     elif value == "In":
-    #         super().direction = 0
-    #     else:
-    #         raise ValueError('Direction of horizontal slider needs to be In or Out.')
-    # direction = property(None, direction)
+        self._position_offset = position_offset
 
+    def get_absolute_position(self):
+        return self.signed_position + self._position_offset
 
-class VerticalSlider(Slider):
+    def set_absolute_position(self, value):
+        self.signed_distance = value - self._position_offset
 
-    def __init__(self, commander, motor_address, position_offset, distance_per_motor_revolution=0.12, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
-        super().__init__(commander, motor_address, position_offset, distance_per_motor_revolution, steps_per_motor_revolution, micro_steps_per_step, direction_modifier)
+    absolute_position = property(get_absolute_position, set_absolute_position)
 
 
-class RotationMotor(NanotecPd6Motor):
+# class RotationMotor(NanotecStepper):
 
-    def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8, direction_modifier="default"):
-        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
+#     def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8, inverse_direction=False):
+#         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
 
-        self._angle_per_motor_revolution = angle_per_motor_revolution
+#         self._angle_per_motor_revolution = angle_per_motor_revolution
 
-    def angle(self, value):
-        # convert from physical angle in radians to (micro) steps of the motor
-        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
-    angle = property(None, angle)
+#     def angle(self, value):
+#         # convert from physical angle in radians to (micro) steps of the motor
+#         self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+#     angle = property(None, angle)
 
-    def direction(self, value):
-        # set the turning direction of the motor according to the positive or negative input direction and the direction modifier
-        if value == RotationalDirection.cw:
-            if self._direction_modifier == "default":
-                self.step_direction = 0
-            elif self._direction_modifier == "inverse":
-                self.step_direction = 1
-            else:
-                raise ValueError('Direction modifier needs to be default or inverse.')
-        elif value == RotationalDirection.ccw:
-            if self._direction_modifier == "default":
-                self.step_direction = 1
-            elif self._direction_modifier == "inverse":
-                self.step_direction = 0
-            else:
-                raise ValueError('Direction modifier needs to be default or inverse.')
-        else:
-            raise ValueError('Direction of linear motor needs to be cw or ccw.')
-    direction = property(None, direction)
+#     def direction(self, value):
+#         # set the turning direction of the motor according to the positive or negative input direction and the direction modifier
+#         if value == RotationalDirection.cw:
+#             if self._direction_modifier == "default":
+#                 self.step_direction = 0
+#             elif self._direction_modifier == "inverse":
+#                 self.step_direction = 1
+#             else:
+#                 raise ValueError('Direction modifier needs to be default or inverse.')
+#         elif value == RotationalDirection.ccw:
+#             if self._direction_modifier == "default":
+#                 self.step_direction = 1
+#             elif self._direction_modifier == "inverse":
+#                 self.step_direction = 0
+#             else:
+#                 raise ValueError('Direction modifier needs to be default or inverse.')
+#         else:
+#             raise ValueError('Direction of linear motor needs to be cw or ccw.')
+#     direction = property(None, direction)
 
-    def speed(self, value):
-        # convert from physical speed in radians per second to (micro) steps per second of the motor
-        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
-    speed = property(None, speed)
+#     def speed(self, value):
+#         # convert from physical speed in radians per second to (micro) steps per second of the motor
+#         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+#     speed = property(None, speed)
