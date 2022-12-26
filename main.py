@@ -109,8 +109,6 @@ def flat_circle_run(distance=0.5, radius=0.02, duration=20, step_frequency=10):
 
 def init():
 
-    print("Rotary Encoder Test Program")
-
     GPIO.setwarnings(True)
     GPIO.setmode(GPIO.BCM)
 
@@ -123,6 +121,8 @@ def init():
     GPIO.setup(Soft_limit_left, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(Soft_limit_top, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(Soft_limit_bottom, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    GPIO.setup(Stepper_power, GPIO.OUT)
 
     GPIO.add_event_detect(Enc_A, GPIO.RISING, callback=rotation_decode)
 
@@ -167,6 +167,7 @@ def soft_limit_violation(port):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+
     import serial
     import time
     import sys
@@ -177,138 +178,170 @@ if __name__ == '__main__':
     from nanotec import *
     from camera_stand_math import *
 
-    print(sys.executable)
-    print(sys.version)
+    try:
 
-    counter = 10
+        print(sys.executable)
+        print(sys.version)
 
-    # Rotary encoder inputs
-    Enc_A = 23
-    Enc_B = 24
+        counter = 10
 
-    # Optoisolated GPIO inputs for optical limit switches
-    Soft_limit_right = 17
-    Soft_limit_left = 18
-    Soft_limit_top = 19
-    Soft_limit_bottom = 20
+        # Rotary encoder inputs
+        Enc_A = 23
+        Enc_B = 24
 
-    init()
+        # Optoisolated GPIO inputs for optical limit switches
+        Soft_limit_right = 17
+        Soft_limit_left = 18
+        Soft_limit_top = 19
+        Soft_limit_bottom = 20
 
-    serial_port = serial.Serial(port='/dev/ttyUSB0',
-                                baudrate=115200,
-                                bytesize=serial.EIGHTBITS,
-                                parity=serial.PARITY_NONE,
-                                stopbits=serial.STOPBITS_ONE,
-                                timeout=1)
+        # power supply for stepper motors
+        Stepper_power = 21
 
-    commander_lock = threading.Lock()
+        init()
 
-    the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
+        time.sleep(1)
 
-    # Horizontal axis
-    arm = LocatedLinearStepper(commander=the_commander, motor_address=1, inverse_direction=True, position_offset=0.152, name='arm')
+        GPIO.output(Stepper_power, GPIO.HIGH)  # turn on the power for the steppers
 
-    # Vertical axis
-    lift = LocatedLinearStepper(commander=the_commander, motor_address=2, inverse_direction=False, position_offset=0.740, name='lift')
+        time.sleep(2)  # wait for steppers to be ready
 
-    arm.ramp_type = "jerkfree"
-    arm.jerk = 5
+        serial_port = serial.Serial(port='/dev/ttyUSB0',
+                                    baudrate=115200,
+                                    bytesize=serial.EIGHTBITS,
+                                    parity=serial.PARITY_NONE,
+                                    stopbits=serial.STOPBITS_ONE,
+                                    timeout=1)
 
-    lift.ramp_type = "jerkfree"
-    lift.jerk = 5
+        commander_lock = threading.Lock()
 
-    def reference_arm():
-        arm.reference_run()
+        the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
-    def reference_lift():
-        lift.reference_run()
+        # Horizontal axis
+        arm = LocatedLinearStepper(commander=the_commander, motor_address=1, inverse_direction=False, position_offset=0.152, name='arm')
 
-    reference_arm_thread = threading.Thread(target=reference_arm)
-    reference_lift_thread = threading.Thread(target=reference_lift)
+        # Vertical axis
+        lift = LocatedLinearStepper(commander=the_commander, motor_address=2, inverse_direction=True, position_offset=0.740, name='lift')
 
-    print("Referencing all axes...")
+        arm.ramp_type = "jerkfree"
+        arm.jerk = 5
 
-    reference_arm_thread.start()
-    reference_lift_thread.start()
+        lift.ramp_type = "jerkfree"
+        lift.jerk = 5
 
-    reference_arm_thread.join()
-    reference_lift_thread.join()
+        def reference_arm():
+            arm.reference_run()
 
-    print("All axes referenced.")
+        def reference_lift():
+            lift.reference_run()
 
-    time.sleep(1)
+        reference_arm_thread = threading.Thread(target=reference_arm)
+        reference_lift_thread = threading.Thread(target=reference_lift)
 
-    def move_arm():
+        print("Referencing all axes...")
 
-        arm.absolute_position = 0.3
-        arm.signed_speed = 0.05
-        arm.run()
-        while not arm.is_ready:
-            time.sleep(1)
-        arm.stop()
+        reference_arm_thread.start()
+        reference_lift_thread.start()
 
-        print("Arm now positioned at ", arm.absolute_position)
+        reference_arm_thread.join()
+        reference_lift_thread.join()
 
-    # horizontal_slider.run()
+        print("All axes referenced.")
 
-    # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
-    # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
+        time.sleep(1)
 
-    def move_lift():
+        def move_arm():
 
-        lift.absolute_position = 1.00       # meters above floor
-        lift.signed_speed = 0.05
-        lift.run()
+            arm.absolute_position = 0.3
+            arm.signed_speed = 0.2
+            arm.run()
+            while not arm.is_ready:
+                time.sleep(1)
+            arm.stop()
 
-        while not lift.is_ready:
-            time.sleep(1)
-        lift.stop()
+            print("Arm now positioned at ", str(arm.absolute_position))
 
-        print("Arm now positioned at ", lift.absolute_position)
+        # horizontal_slider.run()
 
-    t1 = threading.Thread(target=move_arm)
-    t2 = threading.Thread(target=move_lift)
+        # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
+        # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
 
-    t1.start()
-    t2.start()
+        def move_lift():
 
-    print("Waiting for moves to finish...")
+            lift.absolute_position = 1.00       # meters above floor
+            lift.signed_speed = 0.2
+            lift.run()
 
-    t1.join()
-    t2.join()
+            while not lift.is_ready:
+                time.sleep(1)
+            lift.stop()
 
-    print("All done.")
+            print("Lift now positioned at ", str(lift.absolute_position))
 
-    # Rotor
+        t1 = threading.Thread(target=move_arm)
+        t2 = threading.Thread(target=move_lift)
 
-    # radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
+        t1.start()
+        t2.start()
 
-    # rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution, direction_modifier="default")
-    # rotor.ramp_type = "jerkfree"
-    # rotor.jerk = 1
+        print("Waiting for moves to finish...")
 
-    # flat_circle_run()
+        t1.join()
+        t2.join()
 
-    # horizontal_slider.run()
-    # vertical_slider.run()
-    # rotor.run()
+        print("All done.")
 
-    # try:
-    #     while True:
-    #         time.sleep(1)
-    # except KeyboardInterrupt:
-    #     GPIO.cleanup()
+        time.sleep(2)  # wait two secs before powering down the steppers
 
-    # # horizontal_slider.run()
-    # # vertical_slider.run()
-    # # rotor.run()
+        GPIO.output(Stepper_power, GPIO.LOW)  # turn off the power for the steppers
 
-    # # start_time = time.time()
+        # Rotor
 
-    # # circle_run()
+        # radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-    # # end_time = time.time()
+        # rotor = RotationMotor(commander=the_commander, motor_address=3, angle_per_motor_revolution=radians_per_motor_revolution, direction_modifier="default")
+        # rotor.ramp_type = "jerkfree"
+        # rotor.jerk = 1
 
-    # # elapsed_time = end_time - start_time
+        # flat_circle_run()
 
-    # # print('Execution time:', elapsed_time, 'seconds')
+        # horizontal_slider.run()
+        # vertical_slider.run()
+        # rotor.run()
+
+        # try:
+        #     while True:
+        #         time.sleep(1)
+        # except KeyboardInterrupt:
+        #     GPIO.cleanup()
+
+        # # horizontal_slider.run()
+        # # vertical_slider.run()
+        # # rotor.run()
+
+        # # start_time = time.time()
+
+        # # circle_run()
+
+        # # end_time = time.time()
+
+        # # elapsed_time = end_time - start_time
+
+        # # print('Execution time:', elapsed_time, 'seconds')
+
+    except KeyboardInterrupt:
+        # here you put any code you want to run before the program
+        # exits when you press CTRL+C
+        print('Exiting upon KeyboardInterrupt.')
+
+    except:
+        # this catches ALL other exceptions including errors.
+        # You won't get any error messages for debugging
+        # so only use it once your code is working
+        print('Exiting upon error.')
+
+    finally:
+        GPIO.cleanup()  # this ensures a clean exit
+        print('IO ports are cleaned up.')
+
+# end of main

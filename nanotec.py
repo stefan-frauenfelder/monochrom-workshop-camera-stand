@@ -20,7 +20,7 @@ class Commander():
             self._ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
             answer = self._ser.read_until(b'\r')  # read until '\r' appears
             answer = answer[1:].rstrip(b'\r')
-            print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+            # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
             return answer
 
 
@@ -93,7 +93,6 @@ class NanotecStepper():
         self.ramp_type = "jerkfree"
 
     def step_speed(self, value):
-        print('Entering step_speed setter with value ' + str(value))
         if value < 1:
             print('WARNING: Increasing speed value of ' + str(value) + ' to 1.')
             value = max(value, 1)
@@ -231,15 +230,14 @@ class PhysicalLinearStepper(NanotecStepper):
     def direction(self, value):
         # set the turning direction of the motor according to the cw or ccw input direction and the direction modifier
         if value == LinearDirection.positive:
-            self.step_direction = 0
-        elif value == LinearDirection.negative:
             self.step_direction = 1
+        elif value == LinearDirection.negative:
+            self.step_direction = 0
         else:
             raise ValueError('Direction of linear motor needs to be positive or negative.')
     direction = property(None, direction)
 
     def speed(self, value):
-        print('Entering speed setter with value ' + str(value))
         # convert from absolute (always positive) physical speed in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._distance_per_motor_revolution)
     speed = property(None, speed)
@@ -272,26 +270,6 @@ class OrientedLinearStepper(PhysicalLinearStepper):
                 self.direction = LinearDirection.positive
                 self.distance = -value
     signed_distance = property(None, signed_distance)
-
-    # def direction(self, value):
-    #     # set the turning direction of the motor according to the cw or ccw input direction and the direction modifier
-    #     if value == LinearDirection.positive:
-    #         if self._direction_modifier == "default":
-    #             self.step_direction = 0
-    #         elif self._direction_modifier == "inverse":
-    #             self.step_direction = 1
-    #         else:
-    #             raise ValueError('Direction modifier needs to be default or inverse.')
-    #     elif value == LinearDirection.negative:
-    #         if self._direction_modifier == "default":
-    #             self.step_direction = 1
-    #         elif self._direction_modifier == "inverse":
-    #             self.step_direction = 0
-    #         else:
-    #             raise ValueError('Direction modifier needs to be default or inverse.')
-    #     else:
-    #         raise ValueError('Direction of linear motor needs to be positive or negative.')
-    # direction = property(None, direction)
 
     def signed_speed(self, value):
         if not self._inverse_direction:  # direction is default
