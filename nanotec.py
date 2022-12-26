@@ -6,20 +6,22 @@ RotationalDirection = Enum('RotationalDirection', 'cw ccw')
 
 
 class Commander():
-    def __int__(self, ser, port, baud_rate=115200):
-        self.port = port
-        self.baud_rate = baud_rate
-        self.ser = ser
+    def __init__(self, ser, lock):
+        self._ser = ser
+        self._lock = lock
 
     def __del__(self):
-        self.ser.close()  # close port
+        self._ser.close()  # close port
 
     def write_command(self, address, command):
-        self.ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
-        answer = self.ser.read_until(b'\r')  # read until '\r' appears
-        answer = answer[1:].rstrip(b'\r')
-        print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
-        return answer
+        # the calling thread aquires the lock and blocks other threads from using the commander until done
+        with self._lock:
+
+            self._ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
+            answer = self._ser.read_until(b'\r')  # read until '\r' appears
+            answer = answer[1:].rstrip(b'\r')
+            print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+            return answer
 
 
 class NanotecStepper():
@@ -319,6 +321,7 @@ class OrientedLinearStepper(PhysicalLinearStepper):
     def reference_run(self):
         if not self.is_referenced:
 
+            print('Referencing ' + self._name + ' axis.')
             # store values to reapply later
             previous_mode = self.mode
             previous_micro_steps_per_step = self.micro_steps_per_step
@@ -342,10 +345,11 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
 class LocatedLinearStepper(OrientedLinearStepper):
 
-    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, position_offset=0):
+    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, position_offset=0, name='DefaultName'):
         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction)
 
         self._position_offset = position_offset
+        self._name = name
 
     def get_absolute_position(self):
         return self.signed_position + self._position_offset

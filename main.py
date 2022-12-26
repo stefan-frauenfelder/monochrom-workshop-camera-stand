@@ -172,6 +172,7 @@ if __name__ == '__main__':
     import sys
     import math
     import RPi.GPIO as GPIO
+    import threading
 
     from nanotec import *
     from camera_stand_math import *
@@ -200,58 +201,83 @@ if __name__ == '__main__':
                                 stopbits=serial.STOPBITS_ONE,
                                 timeout=1)
 
-    the_commander = Commander()  # create the singleton commander
-    the_commander.ser = serial_port  # hand the serial port to the commander to use
+    commander_lock = threading.Lock()
+
+    the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
     # Horizontal axis
+    arm = LocatedLinearStepper(commander=the_commander, motor_address=1, inverse_direction=True, position_offset=0.152, name='arm')
 
-    arm = LocatedLinearStepper(commander=the_commander, motor_address=1, inverse_direction=True, position_offset=0.152)
+    # Vertical axis
+    lift = LocatedLinearStepper(commander=the_commander, motor_address=2, inverse_direction=False, position_offset=0.740, name='lift')
 
     arm.ramp_type = "jerkfree"
     arm.jerk = 5
 
-    print("Referencing arm...")
-    arm.reference_run()
+    lift.ramp_type = "jerkfree"
+    lift.jerk = 5
 
-    print("Arm now positioned at ", arm.absolute_position)
+    def reference_arm():
+        arm.reference_run()
 
-    arm.absolute_position = 0.3
-    arm.signed_speed = 0.05
-    arm.run()
-    while not arm.is_ready:
-        time.sleep(1)
-    arm.stop()
+    def reference_lift():
+        lift.reference_run()
 
-    print("Arm now positioned at ", arm.absolute_position)
+    reference_arm_thread = threading.Thread(target=reference_arm)
+    reference_lift_thread = threading.Thread(target=reference_lift)
+
+    print("Referencing all axes...")
+
+    reference_arm_thread.start()
+    reference_lift_thread.start()
+
+    reference_arm_thread.join()
+    reference_lift_thread.join()
+
+    print("All axes referenced.")
+
     time.sleep(1)
+
+    def move_arm():
+
+        arm.absolute_position = 0.3
+        arm.signed_speed = 0.05
+        arm.run()
+        while not arm.is_ready:
+            time.sleep(1)
+        arm.stop()
+
+        print("Arm now positioned at ", arm.absolute_position)
 
     # horizontal_slider.run()
 
     # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
     # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
 
-    # Vertical axis
+    def move_lift():
 
-    lift = LocatedLinearStepper(commander=the_commander, motor_address=2, inverse_direction=False, position_offset=0.740)
+        lift.absolute_position = 1.00       # meters above floor
+        lift.signed_speed = 0.05
+        lift.run()
 
-    lift.ramp_type = "jerkfree"
-    lift.jerk = 5
+        while not lift.is_ready:
+            time.sleep(1)
+        lift.stop()
 
-    print("Referencing lift...")
-    lift.reference_run()
+        print("Arm now positioned at ", lift.absolute_position)
 
-    print("lift now positioned at ", lift.absolute_position)
+    t1 = threading.Thread(target=move_arm)
+    t2 = threading.Thread(target=move_lift)
 
-    lift.absolute_position = 1.00       # meters above floor
-    lift.signed_speed = 0.05
-    lift.run()
+    t1.start()
+    t2.start()
 
-    while not lift.is_ready:
-        time.sleep(1)
+    print("Waiting for moves to finish...")
 
-    lift.stop()
+    t1.join()
+    t2.join()
 
-    print("Arm now positioned at ", lift.absolute_position)
+    print("All done.")
 
     # Rotor
 
