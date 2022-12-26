@@ -289,9 +289,13 @@ if __name__ == '__main__':
         t1.join()
         t2.join()
 
-        print("All done.")
-
         time.sleep(2)  # wait two secs before powering down the steppers
+
+        t = arm.move(distance=0.1, speed=0.1)
+
+        t.join()
+
+        print("All done.")
 
         GPIO.output(Stepper_power, GPIO.LOW)  # turn off the power for the steppers
 
@@ -334,7 +338,7 @@ if __name__ == '__main__':
         # exits when you press CTRL+C
         print('Exiting upon KeyboardInterrupt.')
 
-    except:
+    #except:
         # this catches ALL other exceptions including errors.
         # You won't get any error messages for debugging
         # so only use it once your code is working

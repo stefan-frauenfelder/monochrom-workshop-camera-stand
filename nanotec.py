@@ -1,4 +1,5 @@
 import time
+import threading
 from enum import Enum
 
 LinearDirection = Enum('LinearDirection', 'positive negative')
@@ -295,7 +296,29 @@ class OrientedLinearStepper(PhysicalLinearStepper):
             return -self.position
     signed_position = property(signed_position, None)
 
+    def move(self, distance, speed=False):
+
+        if speed:
+            self.signed_speed = speed
+
+        self.signed_distance = distance
+
+        thread = threading.Thread(target=self.wait_for_ready)
+
+        self.run()
+
+        thread.start()
+
+        return thread
+
+    def wait_for_ready(self):
+        # this is blocking and normally only called in its own thread
+        while not self.is_ready:
+            time.sleep(0.5)
+        self.stop()  # not sure this is needed
+
     # utility functions
+
     def reference_run(self):
         if not self.is_referenced:
 
