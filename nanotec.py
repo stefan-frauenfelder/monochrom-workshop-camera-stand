@@ -1,5 +1,6 @@
 import time
 import threading
+import RPi.GPIO as GPIO
 from enum import Enum
 
 LinearDirection = Enum('LinearDirection', 'positive negative')
@@ -26,11 +27,12 @@ class Commander():
 
 
 class NanotecStepper():
-    def __init__(self, commander, motor_address=1, steps_per_motor_revolution=200, micro_steps_per_step=8):
+    def __init__(self, commander, motor_address=1, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8):
         self.commander = commander
         self._motor_address = motor_address
         self._steps_per_motor_revolution = steps_per_motor_revolution
         self._micro_steps_per_step = micro_steps_per_step
+        self._name = name
 
         self._command_letters = {
             "position_mode": b'p',
@@ -218,8 +220,8 @@ class NanotecStepper():
 
 class PhysicalLinearStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
-        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step)
 
         self._distance_per_motor_revolution = distance_per_motor_revolution
 
@@ -250,8 +252,8 @@ class PhysicalLinearStepper(NanotecStepper):
 
 class OrientedLinearStepper(PhysicalLinearStepper):
 
-    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False):
-        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
+    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False):
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
 
         self._inverse_direction = inverse_direction
 
@@ -344,13 +346,58 @@ class OrientedLinearStepper(PhysicalLinearStepper):
             self.micro_steps_per_step = previous_micro_steps_per_step
 
 
-class LocatedLinearStepper(OrientedLinearStepper):
+class FiniteLinearStepper(OrientedLinearStepper):
 
-    def __init__(self, commander, motor_address, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, position_offset=0, name='DefaultName'):
-        super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction)
+    def __init__(self, commander, motor_address, name='DefaultName',
+                 steps_per_motor_revolution=200, micro_steps_per_step=8,
+                 distance_per_motor_revolution=0.12, inverse_direction=False,
+                 near_soft_limit_gpio=False, far_soft_limit_gpio=False):
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction)
+
+        self._near_soft_limit_gpio = near_soft_limit_gpio
+        self._far_soft_limit_gpio = far_soft_limit_gpio
+
+        GPIO.setup(self._near_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self._far_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+        GPIO.add_event_detect(self._near_soft_limit_gpio, GPIO.BOTH, callback=self.near_soft_limit_event)
+        GPIO.add_event_detect(self._far_soft_limit_gpio, GPIO.BOTH, callback=self.far_soft_limit_event)
+
+    def near_soft_limit_event(self, channel):
+        if GPIO.input(channel):    # edge was rising
+            self.near_soft_limit_enter()
+        else:                                   # edge was falling
+            self.near_soft_limit_leave()
+
+    def far_soft_limit_event(self, channel):
+        if GPIO.input(channel):     # edge was rising
+            self.far_soft_limit_enter()
+        else:                                   # edge was falling
+            self.far_soft_limit_leave()
+
+    def near_soft_limit_enter(self):
+        print('Entering near soft limit of ' + self._name + ' axis.')
+
+    def near_soft_limit_leave(self):
+        print('Leaving near soft limit of ' + self._name + ' axis.')
+
+    def far_soft_limit_enter(self):
+        print('Entering far soft limit of ' + self._name + ' axis.')
+
+    def far_soft_limit_leave(self):
+        print('Leaving far soft limit of ' + self._name + ' axis.')
+
+
+class LocatedLinearStepper(FiniteLinearStepper):
+
+    def __init__(self, commander, motor_address, name='DefaultName',
+                 steps_per_motor_revolution=200, micro_steps_per_step=8,
+                 distance_per_motor_revolution=0.12, inverse_direction=False,
+                 near_soft_limit_gpio=False, far_soft_limit_gpio=False,
+                 position_offset=0):
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, near_soft_limit_gpio, far_soft_limit_gpio)
 
         self._position_offset = position_offset
-        self._name = name
 
     def get_absolute_position(self):
         return self.signed_position + self._position_offset

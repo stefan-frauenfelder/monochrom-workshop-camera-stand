@@ -116,20 +116,9 @@ def init():
     GPIO.setup(Enc_A, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(Enc_B, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-    # Optoisolated GPIO inputs for optical limit switches
-    GPIO.setup(Soft_limit_right, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(Soft_limit_left, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(Soft_limit_top, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(Soft_limit_bottom, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
     GPIO.setup(Stepper_power, GPIO.OUT)
 
     GPIO.add_event_detect(Enc_A, GPIO.RISING, callback=rotation_decode)
-
-    GPIO.add_event_detect(Soft_limit_right, GPIO.RISING, callback=soft_limit_violation)
-    GPIO.add_event_detect(Soft_limit_left, GPIO.RISING, callback=soft_limit_violation)
-    GPIO.add_event_detect(Soft_limit_top, GPIO.RISING, callback=soft_limit_violation)
-    GPIO.add_event_detect(Soft_limit_bottom, GPIO.RISING, callback=soft_limit_violation)
 
     return
 
@@ -159,13 +148,6 @@ def rotation_decode(Enc_A):
         return
 
 
-def soft_limit_violation(port):
-    print("Soft limit violation")
-    # horizontal_slider.stop()
-    # rotor.stop()
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
     import serial
@@ -190,10 +172,10 @@ if __name__ == '__main__':
         Enc_B = 24
 
         # Optoisolated GPIO inputs for optical limit switches
-        Soft_limit_right = 17
-        Soft_limit_left = 18
-        Soft_limit_top = 19
-        Soft_limit_bottom = 20
+        Arm_near_soft_limit = 18
+        Arm_far_soft_limit = 17
+        Lift_far_soft_limit = 19
+        Lift_near_soft_limit = 20
 
         # power supply for stepper motors
         Stepper_power = 21
@@ -218,10 +200,22 @@ if __name__ == '__main__':
         the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
         # Horizontal axis
-        arm = LocatedLinearStepper(commander=the_commander, motor_address=1, inverse_direction=False, position_offset=0.152, name='arm')
+        arm = LocatedLinearStepper(commander=the_commander,
+                                   motor_address=1,
+                                   name='arm',
+                                   inverse_direction=False,
+                                   near_soft_limit_gpio=Arm_near_soft_limit,
+                                   far_soft_limit_gpio=Arm_far_soft_limit,
+                                   position_offset=0.152)
 
         # Vertical axis
-        lift = LocatedLinearStepper(commander=the_commander, motor_address=2, inverse_direction=True, position_offset=0.740, name='lift')
+        lift = LocatedLinearStepper(commander=the_commander,
+                                    motor_address=2,
+                                    name='lift',
+                                    inverse_direction=True,
+                                    near_soft_limit_gpio=Lift_near_soft_limit,
+                                    far_soft_limit_gpio=Lift_far_soft_limit,
+                                    position_offset=0.740)
 
         arm.ramp_type = "jerkfree"
         arm.jerk = 5
@@ -338,7 +332,7 @@ if __name__ == '__main__':
         # exits when you press CTRL+C
         print('Exiting upon KeyboardInterrupt.')
 
-    #except:
+    # except:
         # this catches ALL other exceptions including errors.
         # You won't get any error messages for debugging
         # so only use it once your code is working
