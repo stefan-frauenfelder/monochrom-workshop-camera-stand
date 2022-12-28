@@ -1,5 +1,6 @@
 import time
 import threading
+import math
 import RPi.GPIO as GPIO
 from enum import Enum
 
@@ -125,6 +126,8 @@ class NanotecStepper():
             number = 1
         elif value == "absolute_positioning":
             number = 2
+        elif value == "internal_reference_run":
+            number = 3
         elif value == "external_reference_run":
             number = 4
         elif value == "speed_mode":
@@ -624,3 +627,50 @@ class OrientedRotationalStepper(PhysicalRotationalStepper):
         if speed:
             self.signed_speed = speed
         self.signed_angle = angle
+
+    def find_origin(self, direction=RotationalDirection.cw):
+
+        if not self.is_referenced:
+
+            # store values to reapply later
+            previous_mode = self.mode
+
+            print('Finding origin of ' + self._name + ' axis.')
+
+            if direction == RotationalDirection.ccw:  # approaching origin from negative angles
+                sign_modifier = 1
+            elif direction == RotationalDirection.cw:  # approaching origin from positive angles
+                sign_modifier = -1
+            else:
+                raise ValueError('Direction of rotation to find origin needs to be either cw or ccw.')
+
+            # assumption: rotational axis is started up in about neutral position
+
+            # backup from neutral startup position by a quarter rotation
+            self.mode = "relative_positioning"
+            self.speed = 1
+            self.signed_angle = sign_modifier * -math.pi / 4
+            self.run()
+            while not self.is_ready:
+                time.sleep(0.5)
+            self.stop()
+
+            # approach origin slowly
+            self.mode = 'internal_reference_run'
+            self.speed = 0.1
+            self.signed_angle = sign_modifier * 2 * math.pi
+            self.run()
+            while not self.is_referenced:
+                time.sleep(0.5)
+            self.stop()  # in case the motor was already referenced and it is still running
+
+            # restore previous settings
+            self.mode = previous_mode
+
+            self._origin_is_set = True
+
+            print('Origin of ' + self._name + ' axis set. Now positioned at ' + str(self.signed_position))
+
+        else:
+            # must not happen
+            raise ValueError('Find origin must not be called for an already referenced motor. Power cycle the motor before every new run of this software.')

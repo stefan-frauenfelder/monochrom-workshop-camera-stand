@@ -275,11 +275,20 @@ if __name__ == '__main__':
         tilt.ramp_type = "jerkfree"
         tilt.jerk = 1
 
-        pan.move(angle=2, speed=0.1)
-        pan.run()
-        while not pan.is_ready:
-            time.sleep(0.5)
-        pan.stop()
+        def find_pan_origin():
+            pan.find_origin(direction=RotationalDirection.cw)
+
+        def find_tilt_origin():
+            tilt.find_origin(direction=RotationalDirection.ccw)
+
+        find_origin_pan_thread = threading.Thread(target=find_pan_origin)
+        find_origin_tilt_thread = threading.Thread(target=find_tilt_origin)
+
+        find_origin_pan_thread.start()
+        find_origin_tilt_thread.start()
+
+        find_origin_pan_thread.join()
+        find_origin_tilt_thread.join()
 
         GPIO.output(Stepper_power, GPIO.LOW)  # turn off the power for the steppers
 
