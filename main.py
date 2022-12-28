@@ -192,70 +192,94 @@ if __name__ == '__main__':
 
         the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
-        # Horizontal axis
-        arm = LocatedLinearStepper(commander=the_commander,
-                                   motor_address=1,
-                                   name='arm',
-                                   inverse_direction=False,
-                                   safe_length=0.6,
-                                   near_soft_limit_gpio=Arm_near_soft_limit,
-                                   far_soft_limit_gpio=Arm_far_soft_limit,
-                                   position_offset=0.260)
+        # # Horizontal axis
+        # arm = LocatedLinearStepper(commander=the_commander,
+        #                            motor_address=1,
+        #                            name='arm',
+        #                            inverse_direction=False,
+        #                            safe_length=0.6,
+        #                            near_soft_limit_gpio=Arm_near_soft_limit,
+        #                            far_soft_limit_gpio=Arm_far_soft_limit,
+        #                            position_offset=0.260)
 
-        # Vertical axis
-        lift = LocatedLinearStepper(commander=the_commander,
-                                    motor_address=2,
-                                    name='lift',
-                                    inverse_direction=True,
-                                    safe_length=0.6,
-                                    near_soft_limit_gpio=Lift_near_soft_limit,
-                                    far_soft_limit_gpio=Lift_far_soft_limit,
-                                    position_offset=0.740)
+        # # Vertical axis
+        # lift = LocatedLinearStepper(commander=the_commander,
+        #                             motor_address=2,
+        #                             name='lift',
+        #                             inverse_direction=True,
+        #                             safe_length=0.6,
+        #                             near_soft_limit_gpio=Lift_near_soft_limit,
+        #                             far_soft_limit_gpio=Lift_far_soft_limit,
+        #                             position_offset=0.740)
 
-        arm.ramp_type = "jerkfree"
-        arm.jerk = 5
+        # arm.ramp_type = "jerkfree"
+        # arm.jerk = 5
 
-        lift.ramp_type = "jerkfree"
-        lift.jerk = 5
+        # lift.ramp_type = "jerkfree"
+        # lift.jerk = 5
 
-        print("Finding limits of all axes...")
+        # print("Finding limits of all axes...")
 
-        find_limits_arm_thread = threading.Thread(target=arm.find_limits)
-        # find_limits_lift_thread = threading.Thread(target=lift.find_limits)
+        # find_limits_arm_thread = threading.Thread(target=arm.find_limits)
+        # # find_limits_lift_thread = threading.Thread(target=lift.find_limits)
 
-        find_limits_arm_thread.start()
-        # find_limits_lift_thread.start()
+        # find_limits_arm_thread.start()
+        # # find_limits_lift_thread.start()
 
-        find_limits_arm_thread.join()
-        # find_limits_lift_thread.join()
+        # find_limits_arm_thread.join()
+        # # find_limits_lift_thread.join()
 
-        print("Limits of all axes set.")
+        # print("Limits of all axes set.")
 
-        # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
-        # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
+        # # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
+        # # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
 
-        print("All done.")
+        # print("All done.")
 
-        arm.goto_absolute_position(position=0.4, speed=0.1)
+        # arm.goto_absolute_position(position=0.4, speed=0.1)
 
-        arm.run()
-        while not arm.is_ready:
-            time.sleep(0.5)
-        arm.stop()
+        # arm.run()
+        # while not arm.is_ready:
+        #     time.sleep(0.5)
+        # arm.stop()
 
         # Rotor
 
-        radians_per_motor_revolution = 2 * math.pi / 25  # this is the gear ratio of the worm drive
+        radians_per_motor_revolution_of_rotor = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-        rotor = RotationStepper(commander=the_commander,
-                                motor_address=3,
-                                name='rotor',
-                                angle_per_motor_revolution=radians_per_motor_revolution)
+        rotor = OrientedRotationalStepper(commander=the_commander,
+                                          motor_address=3,
+                                          name='rotor',
+                                          angle_per_motor_revolution=radians_per_motor_revolution_of_rotor)
 
         rotor.ramp_type = "jerkfree"
         rotor.jerk = 1
 
-        flat_circle_run()
+        # flat_circle_run()
+
+        pan = OrientedRotationalStepper(commander=the_commander,
+                                        motor_address=4,
+                                        name='pan',
+                                        inverse_direction=True,
+                                        angle_per_motor_revolution=2 * math.pi)
+
+        pan.ramp_type = "jerkfree"
+        pan.jerk = 1
+
+        tilt = OrientedRotationalStepper(commander=the_commander,
+                                         motor_address=5,
+                                         name='tilt',
+                                         inverse_direction=True,
+                                         angle_per_motor_revolution=2 * math.pi)
+
+        tilt.ramp_type = "jerkfree"
+        tilt.jerk = 1
+
+        pan.move(angle=2, speed=0.1)
+        pan.run()
+        while not pan.is_ready:
+            time.sleep(0.5)
+        pan.stop()
 
         GPIO.output(Stepper_power, GPIO.LOW)  # turn off the power for the steppers
 

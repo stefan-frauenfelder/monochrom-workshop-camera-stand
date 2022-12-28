@@ -63,7 +63,8 @@ class NanotecStepper():
             "step_position": b'C',
             "is_referenced": b':is_referenced',
             "status": b'$',
-            "reset_error": b'D'
+            "reset_error": b'D',
+            "factory_reset": b'~'
         }
         self._ram_record = {
             "step_mode": self._micro_steps_per_step,   # number of microsteps per step
@@ -225,6 +226,11 @@ class NanotecStepper():
         # reset the position error
         print('WARNING: Reseting position error of motor ' + str(self._motor_address) + '!')
         self.commander.write_command(self._motor_address, self._command_letters["reset_error"])
+
+    def reset_to_factory_setting(self):
+        # reset the motor to factory settings
+        self.commander.write_command(self._motor_address, self._command_letters["factory_reset"])
+        time.sleep(1)  # the controller needs a second to accept new commands and should be powered off and back on
 
 
 class PhysicalLinearStepper(NanotecStepper):
@@ -530,9 +536,9 @@ class LocatedLinearStepper(FiniteLinearStepper):
             raise ValueError('Position to go to is outside safe travel distance.')
 
 
-class RotationStepper(NanotecStepper):
+class PhysicalRotationalStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2, inverse_direction=False):
+    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2):
         super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step)
 
         self._angle_per_motor_revolution = angle_per_motor_revolution
@@ -542,27 +548,79 @@ class RotationStepper(NanotecStepper):
         self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     angle = property(None, angle)
 
-    # def direction(self, value):
-    #     # set the turning direction of the motor according to the positive or negative input direction and the direction modifier
-    #     if value == RotationalDirection.cw:
-    #         if self._direction_modifier == "default":
-    #             self.step_direction = 0
-    #         elif self._direction_modifier == "inverse":
-    #             self.step_direction = 1
-    #         else:
-    #             raise ValueError('Direction modifier needs to be default or inverse.')
-    #     elif value == RotationalDirection.ccw:
-    #         if self._direction_modifier == "default":
-    #             self.step_direction = 1
-    #         elif self._direction_modifier == "inverse":
-    #             self.step_direction = 0
-    #         else:
-    #             raise ValueError('Direction modifier needs to be default or inverse.')
-    #     else:
-    #         raise ValueError('Direction of linear motor needs to be cw or ccw.')
-    # direction = property(None, direction)
+    def direction(self, value):
+        # set the turning direction of the motor according to the cw or ccw argument
+        if value == RotationalDirection.cw:
+            self.step_direction = 1  # Todo: this may be wrong!
+        elif value == RotationalDirection.ccw:
+            self.step_direction = 0
+        else:
+            raise ValueError('Direction of rotation needs to be either cw or ccw.')
+    direction = property(None, direction)
 
     def speed(self, value):
         # convert from physical speed in radians per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     speed = property(None, speed)
+
+    @property
+    def position(self):
+        return float(self.step_position) / self.micro_steps_per_step / self.steps_per_motor_revolution * self._angle_per_motor_revolution
+
+
+class OrientedRotationalStepper(PhysicalRotationalStepper):
+
+    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2, inverse_direction=False, safe_angle=3):
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, angle_per_motor_revolution)
+
+        self._inverse_direction = inverse_direction
+        self._origin_is_set = False
+        self._safe_angle = safe_angle
+
+    def signed_angle(self, value):
+        if not self._inverse_direction:  # direction is default
+            if value >= 0:
+                self.direction = RotationalDirection.ccw
+                self.angle = value
+            else:
+                self.direction = RotationalDirection.cw
+                self.angle = -value
+        else:  # direction is inverse
+            if value >= 0:
+                self.direction = RotationalDirection.cw
+                self.angle = value
+            else:
+                self.direction = RotationalDirection.ccw
+                self.angle = -value
+    signed_angle = property(None, signed_angle)
+
+    def signed_speed(self, value):
+        if not self._inverse_direction:  # direction is default
+            if value >= 0:
+                self.direction = RotationalDirection.ccw
+                self.speed = value
+            else:
+                self.direction = RotationalDirection.cw
+                self.speed = -value
+        else:  # direction is inverse
+            if value >= 0:
+                self.direction = RotationalDirection.cw
+                self.speed = value
+            else:
+                self.direction = RotationalDirection.ccw
+                self.speed = -value
+    signed_speed = property(None, signed_speed)
+
+    def signed_position(self):
+        if not self._inverse_direction:  # direction is default
+            return self.position
+        else:  # direction is inverse
+            return -self.position
+    signed_position = property(signed_position, None)
+
+    def move(self, angle, speed=False):
+
+        self.mode = "relative_positioning"
+        if speed:
+            self.signed_speed = speed
+        self.signed_angle = angle
