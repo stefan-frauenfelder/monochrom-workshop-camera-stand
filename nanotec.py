@@ -22,7 +22,7 @@ class Commander():
             self._ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
             answer = self._ser.read_until(b'\r')  # read until '\r' appears
             answer = answer[1:].rstrip(b'\r')
-            # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+            print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
             return answer
 
 
@@ -62,7 +62,8 @@ class NanotecStepper():
             "input_6": b':port_in_f',
             "step_position": b'C',
             "is_referenced": b':is_referenced',
-            "status": b'$'
+            "status": b'$',
+            "reset_error": b'D'
         }
         self._ram_record = {
             "step_mode": self._micro_steps_per_step,   # number of microsteps per step
@@ -194,6 +195,9 @@ class NanotecStepper():
         status_answer_int = int(status_answer_str[1])
         if status_answer_int & 1:
             return True
+        elif status_answer_int & 4:
+            self.reset_position_error()
+            return False
         else:
             return False
 
@@ -214,8 +218,13 @@ class NanotecStepper():
         self.commander.write_command(self._motor_address, b'S1')
 
     def immediate_stop(self):
-        # stop the motor with the current stop ramp
+        # stop the motor with the steep stop ramp
         self.commander.write_command(self._motor_address, b'S0')
+
+    def reset_position_error(self):
+        # reset the position error
+        print('WARNING: Reseting position error of motor ' + str(self._motor_address) + '!')
+        self.commander.write_command(self._motor_address, self._command_letters["reset_error"])
 
 
 class PhysicalLinearStepper(NanotecStepper):
@@ -302,6 +311,7 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
     def move(self, distance, speed=False):
 
+        self.mode = "relative_positioning"
         if speed:
             self.signed_speed = speed
         self.signed_distance = distance
@@ -335,10 +345,9 @@ class OrientedLinearStepper(PhysicalLinearStepper):
             self.stop()  # in case the motor was already referenced and it is still running
 
             # switch ro suitable settings to move within soft limits
-            self.mode = "relative_positioning"
-            self.micro_steps_per_step = 8
+            self.micro_steps_per_step = previous_micro_steps_per_step
             # move to within soft limits
-            self.move(distance=self._safe_length / 3, speed=0.1)
+            self.move(distance=self._safe_length / 3, speed=0.2)
             self.run()
             while not self.is_ready:
                 time.sleep(0.5)
@@ -346,11 +355,10 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
             # restore previous settings
             self.mode = previous_mode
-            self.micro_steps_per_step = previous_micro_steps_per_step
 
             self._origin_is_set = True
 
-            print('Origin set of ' + self._name + ' axis set.')
+            print('Origin of ' + self._name + ' axis set. Now positioned at ' + str(self.signed_position))
 
         else:
             # must not happen
@@ -368,8 +376,17 @@ class FiniteLinearStepper(OrientedLinearStepper):
         self._near_soft_limit_gpio = near_soft_limit_gpio
         self._far_soft_limit_gpio = far_soft_limit_gpio
 
-        self._near_soft_limit = False
-        self._far_soft_limit = False
+        self._near_soft_limit_location = False
+        self._far_soft_limit_location = False
+
+        self._is_off_near_soft_limit = False
+        self._is_off_far_soft_limit = False
+
+        self._safe_travel_distance = False
+
+        self._safety_margin = 0.01  # the margin between the soft limit and the safe zone
+
+        self._is_limited = False
 
         GPIO.setup(self._near_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(self._far_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -391,27 +408,97 @@ class FiniteLinearStepper(OrientedLinearStepper):
 
     def near_soft_limit_enter(self):
         print('Entering near soft limit of ' + self._name + ' axis.')
-        if self._origin_is_set and not self._near_soft_limit:
-            current_position = self.signed_position
-            self._near_soft_limit = current_position
-            print('Set near soft limit of ' + self._name + ' axis to ' + str(current_position) + '.')
+        self._is_off_near_soft_limit = True
+        self.off_limits()
 
     def near_soft_limit_leave(self):
         print('Leaving near soft limit of ' + self._name + ' axis.')
-        if self._origin_is_set and not self._near_soft_limit:
-            current_position = self.signed_position
-            self._near_soft_limit = current_position
-            print('Set near soft limit of ' + self._name + ' axis to ' + str(current_position) + '.')
+        self._is_off_near_soft_limit = False
 
     def far_soft_limit_enter(self):
         print('Entering far soft limit of ' + self._name + ' axis.')
+        self._is_off_far_soft_limit = True
+        self.off_limits()
 
     def far_soft_limit_leave(self):
         print('Leaving far soft limit of ' + self._name + ' axis.')
+        self._is_off_far_soft_limit = False
+
+    def off_limits(self):
+        if self._is_limited:
+            self.stop()
+            print('WARNING: ' + self._name + ' axis stopped due to soft limit violation.')
 
     def find_limits(self):
         if not self.is_referenced:
             self.find_origin()
+
+        # move to off near limit
+        self.move(distance=- 2 * self._safe_length, speed=0.1)
+        self.run()
+        while not self._is_off_near_soft_limit:
+            time.sleep(0.1)
+        self.stop()
+
+        # slowly go back to within limit
+        self.move(distance=2 * self._safe_length, speed=0.01)
+        self.run()
+        while self._is_off_near_soft_limit:
+            time.sleep(0.01)
+        self.stop()
+
+        # set the near limit
+        current_position = self.signed_position
+        self._near_soft_limit_location = current_position
+        print('Set near soft limit location of ' + self._name + ' axis to ' + str(current_position) + '.')
+
+        # move to near far limit
+        self.move(distance=self._safe_length, speed=0.2)
+        self.run()
+        while not self.is_ready:
+            time.sleep(0.5)
+        self.stop()
+
+        # move beyond far limit
+        self.move(distance=self._safe_length, speed=0.1)
+        self.run()
+        while not self._is_off_far_soft_limit:
+            time.sleep(0.1)
+        self.stop()
+
+        # slowly go back to within limit
+        self.move(distance=-self._safe_length, speed=0.01)
+        self.run()
+        while self._is_off_far_soft_limit:
+            time.sleep(0.01)
+        self.stop()
+
+        # set the far limit
+        current_position = self.signed_position
+        self._far_soft_limit_location = current_position
+        print('Set far soft limit location of ' + self._name + ' axis to ' + str(current_position) + '.')
+
+        self._safe_travel_distance = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
+
+        # move to center
+        self.move(distance=- self._safe_travel_distance / 2, speed=0.2)
+        self.run()
+        while not self.is_ready:
+            time.sleep(0.5)
+        self.stop()
+
+        self._is_limited = True
+
+        print('Safe travel distance of ' + self._name + ' axis is ' + str(self._safe_travel_distance) + '.')
+        print('Soft limit guard of ' + self._name + ' axis activated.')
+
+    def get_limited_position(self):
+        return self.signed_position - self._safety_margin - self._near_soft_limit_location
+
+    def set_limited_position(self, value):
+        self.signed_distance = value + self._safety_margin + self._near_soft_limit_location
+
+    limited_position = property(get_limited_position, set_limited_position)
 
 
 class LocatedLinearStepper(FiniteLinearStepper):
@@ -426,47 +513,56 @@ class LocatedLinearStepper(FiniteLinearStepper):
         self._position_offset = position_offset
 
     def get_absolute_position(self):
-        return self.signed_position + self._position_offset
+        return self.limited_position + self._position_offset
 
     def set_absolute_position(self, value):
-        self.signed_distance = value - self._position_offset
+        self.limited_position = value - self._position_offset
 
     absolute_position = property(get_absolute_position, set_absolute_position)
 
+    def goto_absolute_position(self, position, speed):
+        if position > self._position_offset and position < (self._position_offset + self._safe_travel_distance):
+            self.mode = "absolute_positioning"
+            if speed:
+                self.signed_speed = speed
+            self.absolute_position = position
+        else:
+            raise ValueError('Position to go to is outside safe travel distance.')
 
-# class RotationMotor(NanotecStepper):
 
-#     def __init__(self, commander, motor_address, angle_per_motor_revolution, steps_per_motor_revolution=200, micro_steps_per_step=8, inverse_direction=False):
-#         super().__init__(commander, motor_address, steps_per_motor_revolution, micro_steps_per_step)
+class RotationStepper(NanotecStepper):
 
-#         self._angle_per_motor_revolution = angle_per_motor_revolution
+    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2, inverse_direction=False):
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step)
 
-#     def angle(self, value):
-#         # convert from physical angle in radians to (micro) steps of the motor
-#         self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
-#     angle = property(None, angle)
+        self._angle_per_motor_revolution = angle_per_motor_revolution
 
-#     def direction(self, value):
-#         # set the turning direction of the motor according to the positive or negative input direction and the direction modifier
-#         if value == RotationalDirection.cw:
-#             if self._direction_modifier == "default":
-#                 self.step_direction = 0
-#             elif self._direction_modifier == "inverse":
-#                 self.step_direction = 1
-#             else:
-#                 raise ValueError('Direction modifier needs to be default or inverse.')
-#         elif value == RotationalDirection.ccw:
-#             if self._direction_modifier == "default":
-#                 self.step_direction = 1
-#             elif self._direction_modifier == "inverse":
-#                 self.step_direction = 0
-#             else:
-#                 raise ValueError('Direction modifier needs to be default or inverse.')
-#         else:
-#             raise ValueError('Direction of linear motor needs to be cw or ccw.')
-#     direction = property(None, direction)
+    def angle(self, value):
+        # convert from physical angle in radians to (micro) steps of the motor
+        self.step_distance = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+    angle = property(None, angle)
 
-#     def speed(self, value):
-#         # convert from physical speed in radians per second to (micro) steps per second of the motor
-#         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
-#     speed = property(None, speed)
+    # def direction(self, value):
+    #     # set the turning direction of the motor according to the positive or negative input direction and the direction modifier
+    #     if value == RotationalDirection.cw:
+    #         if self._direction_modifier == "default":
+    #             self.step_direction = 0
+    #         elif self._direction_modifier == "inverse":
+    #             self.step_direction = 1
+    #         else:
+    #             raise ValueError('Direction modifier needs to be default or inverse.')
+    #     elif value == RotationalDirection.ccw:
+    #         if self._direction_modifier == "default":
+    #             self.step_direction = 1
+    #         elif self._direction_modifier == "inverse":
+    #             self.step_direction = 0
+    #         else:
+    #             raise ValueError('Direction modifier needs to be default or inverse.')
+    #     else:
+    #         raise ValueError('Direction of linear motor needs to be cw or ccw.')
+    # direction = property(None, direction)
+
+    def speed(self, value):
+        # convert from physical speed in radians per second to (micro) steps per second of the motor
+        self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+    speed = property(None, speed)
