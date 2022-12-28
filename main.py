@@ -182,11 +182,9 @@ if __name__ == '__main__':
 
         init()
 
-        time.sleep(1)
-
         GPIO.output(Stepper_power, GPIO.HIGH)  # turn on the power for the steppers
 
-        time.sleep(2)  # wait for steppers to be ready
+        time.sleep(1)  # wait for steppers to be ready
 
         serial_port = serial.Serial(port='/dev/ttyUSB0',
                                     baudrate=115200,
@@ -204,6 +202,7 @@ if __name__ == '__main__':
                                    motor_address=1,
                                    name='arm',
                                    inverse_direction=False,
+                                   safe_length=0.6,
                                    near_soft_limit_gpio=Arm_near_soft_limit,
                                    far_soft_limit_gpio=Arm_far_soft_limit,
                                    position_offset=0.152)
@@ -213,6 +212,7 @@ if __name__ == '__main__':
                                     motor_address=2,
                                     name='lift',
                                     inverse_direction=True,
+                                    safe_length=0.6,
                                     near_soft_limit_gpio=Lift_near_soft_limit,
                                     far_soft_limit_gpio=Lift_far_soft_limit,
                                     position_offset=0.740)
@@ -223,71 +223,23 @@ if __name__ == '__main__':
         lift.ramp_type = "jerkfree"
         lift.jerk = 5
 
-        def reference_arm():
-            arm.reference_run()
+        print("Finding origins of all axes...")
 
-        def reference_lift():
-            lift.reference_run()
+        find_origin_arm_thread = threading.Thread(target=arm.find_origin)
+        find_origin_lift_thread = threading.Thread(target=lift.find_origin)
 
-        reference_arm_thread = threading.Thread(target=reference_arm)
-        reference_lift_thread = threading.Thread(target=reference_lift)
+        find_origin_arm_thread.start()
+        find_origin_lift_thread.start()
 
-        print("Referencing all axes...")
+        find_origin_arm_thread.join()
+        find_origin_lift_thread.join()
 
-        reference_arm_thread.start()
-        reference_lift_thread.start()
-
-        reference_arm_thread.join()
-        reference_lift_thread.join()
-
-        print("All axes referenced.")
-
-        time.sleep(1)
-
-        def move_arm():
-
-            arm.absolute_position = 0.3
-            arm.signed_speed = 0.2
-            arm.run()
-            while not arm.is_ready:
-                time.sleep(1)
-            arm.stop()
-
-            print("Arm now positioned at ", str(arm.absolute_position))
+        print("Origins of all axes set.")
 
         # horizontal_slider.run()
 
         # # 0.02m stopping distance @ jerk 5 and speed 0.1m/s
         # # 0.07m stopping distance @ jerk 5 and speed 0.2m/s
-
-        def move_lift():
-
-            lift.absolute_position = 1.00       # meters above floor
-            lift.signed_speed = 0.2
-            lift.run()
-
-            while not lift.is_ready:
-                time.sleep(1)
-            lift.stop()
-
-            print("Lift now positioned at ", str(lift.absolute_position))
-
-        t1 = threading.Thread(target=move_arm)
-        t2 = threading.Thread(target=move_lift)
-
-        t1.start()
-        t2.start()
-
-        print("Waiting for moves to finish...")
-
-        t1.join()
-        t2.join()
-
-        time.sleep(2)  # wait two secs before powering down the steppers
-
-        t = arm.move(distance=0.1, speed=0.1)
-
-        t.join()
 
         print("All done.")
 

@@ -90,7 +90,7 @@ class NanotecStepper():
         for key in self._ram_record:
             command = self._command_letters[key] + (str(self._ram_record[key]).encode('UTF-8'))
             self.commander.write_command(self._motor_address, command)
-            print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._ram_record[key]))
+            # print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._ram_record[key]))
 
         self.mode = "relative_positioning"
         self.ramp_type = "jerkfree"
@@ -252,10 +252,12 @@ class PhysicalLinearStepper(NanotecStepper):
 
 class OrientedLinearStepper(PhysicalLinearStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False):
+    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6):
         super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
 
         self._inverse_direction = inverse_direction
+        self._origin_is_set = False
+        self._safe_length = safe_length
 
     def signed_distance(self, value):
         if not self._inverse_direction:  # direction is default
@@ -302,16 +304,7 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
         if speed:
             self.signed_speed = speed
-
         self.signed_distance = distance
-
-        thread = threading.Thread(target=self.wait_for_ready)
-
-        self.run()
-
-        thread.start()
-
-        return thread
 
     def wait_for_ready(self):
         # this is blocking and normally only called in its own thread
@@ -321,41 +314,62 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
     # utility functions
 
-    def reference_run(self):
+    def find_origin(self):
+
         if not self.is_referenced:
 
-            print('Referencing ' + self._name + ' axis.')
             # store values to reapply later
             previous_mode = self.mode
             previous_micro_steps_per_step = self.micro_steps_per_step
 
+            print('Finding origin of ' + self._name + ' axis.')
+
             self.mode = "external_reference_run"
             self.micro_steps_per_step = 1   # full step mode
-            self.distance = 1               # m
+            self.distance = 2 * self._safe_length  # m
             self.signed_speed = -0.02       # m/s
 
             self.run()
-
             while not self.is_referenced:
-                time.sleep(1)
+                time.sleep(0.5)
+            self.stop()  # in case the motor was already referenced and it is still running
 
-            time.sleep(0.5)
+            # switch ro suitable settings to move within soft limits
+            self.mode = "relative_positioning"
+            self.micro_steps_per_step = 8
+            # move to within soft limits
+            self.move(distance=self._safe_length / 3, speed=0.1)
+            self.run()
+            while not self.is_ready:
+                time.sleep(0.5)
+            self.stop()
 
-            # restore previous values
+            # restore previous settings
             self.mode = previous_mode
             self.micro_steps_per_step = previous_micro_steps_per_step
+
+            self._origin_is_set = True
+
+            print('Origin set of ' + self._name + ' axis set.')
+
+        else:
+            # must not happen
+            raise ValueError('Find origin must not be called for an already referenced motor. Power cycle the motor before every new run of this software.')
 
 
 class FiniteLinearStepper(OrientedLinearStepper):
 
     def __init__(self, commander, motor_address, name='DefaultName',
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
-                 distance_per_motor_revolution=0.12, inverse_direction=False,
+                 distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
                  near_soft_limit_gpio=False, far_soft_limit_gpio=False):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction)
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
 
         self._near_soft_limit_gpio = near_soft_limit_gpio
         self._far_soft_limit_gpio = far_soft_limit_gpio
+
+        self._near_soft_limit = False
+        self._far_soft_limit = False
 
         GPIO.setup(self._near_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(self._far_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -377,9 +391,17 @@ class FiniteLinearStepper(OrientedLinearStepper):
 
     def near_soft_limit_enter(self):
         print('Entering near soft limit of ' + self._name + ' axis.')
+        if self._origin_is_set and not self._near_soft_limit:
+            current_position = self.signed_position
+            self._near_soft_limit = current_position
+            print('Set near soft limit of ' + self._name + ' axis to ' + str(current_position) + '.')
 
     def near_soft_limit_leave(self):
         print('Leaving near soft limit of ' + self._name + ' axis.')
+        if self._origin_is_set and not self._near_soft_limit:
+            current_position = self.signed_position
+            self._near_soft_limit = current_position
+            print('Set near soft limit of ' + self._name + ' axis to ' + str(current_position) + '.')
 
     def far_soft_limit_enter(self):
         print('Entering far soft limit of ' + self._name + ' axis.')
@@ -387,15 +409,19 @@ class FiniteLinearStepper(OrientedLinearStepper):
     def far_soft_limit_leave(self):
         print('Leaving far soft limit of ' + self._name + ' axis.')
 
+    def find_limits(self):
+        if not self.is_referenced:
+            self.find_origin()
+
 
 class LocatedLinearStepper(FiniteLinearStepper):
 
     def __init__(self, commander, motor_address, name='DefaultName',
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
-                 distance_per_motor_revolution=0.12, inverse_direction=False,
+                 distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
                  near_soft_limit_gpio=False, far_soft_limit_gpio=False,
                  position_offset=0):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, near_soft_limit_gpio, far_soft_limit_gpio)
+        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_gpio, far_soft_limit_gpio)
 
         self._position_offset = position_offset
 
