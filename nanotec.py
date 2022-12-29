@@ -23,7 +23,7 @@ class Commander():
             self._ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
             answer = self._ser.read_until(b'\r')  # read until '\r' appears
             answer = answer[1:].rstrip(b'\r')
-            print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+            # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
             return answer
 
 
@@ -235,6 +235,16 @@ class NanotecStepper():
         self.commander.write_command(self._motor_address, self._command_letters["factory_reset"])
         time.sleep(1)  # the controller needs a second to accept new commands and should be powered off and back on
 
+    def wait_for_ready(self, polling_time=0.5):
+        # this is blocking and normally only called in its own thread
+        while not self.is_ready:
+            time.sleep(polling_time)
+        self.stop()  # not sure this is needed
+
+    def blocking_run(self, polling_time=0.5):
+        self.run()
+        self.wait_for_ready(polling_time)
+
 
 class PhysicalLinearStepper(NanotecStepper):
 
@@ -325,12 +335,6 @@ class OrientedLinearStepper(PhysicalLinearStepper):
             self.signed_speed = speed
         self.signed_distance = distance
 
-    def wait_for_ready(self):
-        # this is blocking and normally only called in its own thread
-        while not self.is_ready:
-            time.sleep(0.5)
-        self.stop()  # not sure this is needed
-
     # utility functions
 
     def find_origin(self):
@@ -357,10 +361,7 @@ class OrientedLinearStepper(PhysicalLinearStepper):
             self.micro_steps_per_step = previous_micro_steps_per_step
             # move to within soft limits
             self.move(distance=self._safe_length / 3, speed=0.2)
-            self.run()
-            while not self.is_ready:
-                time.sleep(0.5)
-            self.stop()
+            self.blocking_run()
 
             # restore previous settings
             self.mode = previous_mode
@@ -491,10 +492,7 @@ class FiniteLinearStepper(OrientedLinearStepper):
 
         # move to center
         self.move(distance=- self._safe_travel_distance / 2, speed=0.2)
-        self.run()
-        while not self.is_ready:
-            time.sleep(0.5)
-        self.stop()
+        self.blocking_run()
 
         self._is_limited = True
 
@@ -628,7 +626,7 @@ class OrientedRotationalStepper(PhysicalRotationalStepper):
             self.signed_speed = speed
         self.signed_angle = angle
 
-    def find_origin(self, direction=RotationalDirection.cw):
+    def find_origin(self, limit_switch='internal', direction=RotationalDirection.cw):
 
         if not self.is_referenced:
 
@@ -639,8 +637,10 @@ class OrientedRotationalStepper(PhysicalRotationalStepper):
 
             if direction == RotationalDirection.ccw:  # approaching origin from negative angles
                 sign_modifier = 1
+
             elif direction == RotationalDirection.cw:  # approaching origin from positive angles
                 sign_modifier = -1
+
             else:
                 raise ValueError('Direction of rotation to find origin needs to be either cw or ccw.')
 
@@ -648,15 +648,22 @@ class OrientedRotationalStepper(PhysicalRotationalStepper):
 
             # backup from neutral startup position by a quarter rotation
             self.mode = "relative_positioning"
-            self.speed = 1
+            self.speed = 0.2
             self.signed_angle = sign_modifier * -math.pi / 4
-            self.run()
-            while not self.is_ready:
-                time.sleep(0.5)
-            self.stop()
+            self.blocking_run()
+
+            # activate the appropriate mode
+
+            if limit_switch == 'internal':  # approaching origin from negative angles
+                self.mode = 'internal_reference_run'
+
+            elif limit_switch == 'external':  # approaching origin from positive angles
+                self.mode = 'external_reference_run'
+
+            else:
+                raise ValueError('Limit switch parameter needs to be either internal or external.')
 
             # approach origin slowly
-            self.mode = 'internal_reference_run'
             self.speed = 0.1
             self.signed_angle = sign_modifier * 2 * math.pi
             self.run()

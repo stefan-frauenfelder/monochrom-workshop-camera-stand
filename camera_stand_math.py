@@ -1,34 +1,34 @@
 
 import math
 
-
-def arm_extension_speed(alpha, distance, radius):
-
-    nominator = distance * radius * math.sin(alpha)
-
-    denominator = math.sqrt(pow(distance, 2) + 2 * distance * radius * math.cos(alpha) + pow(radius, 2))
-
-    return nominator / denominator
+# for circular motion, the following assumptions apply
+# - alpha is the angle of the circular motion with a given radius around a center with a given distance from the origin
+# - alpha is given as a funktion of time as alpha = k * t
 
 
-def arm_extension(alpha, distance, radius):
+def circular_motion_arm_position(alpha, distance, radius):
 
     return math.sqrt(pow(distance, 2) + pow(radius, 2) - (2 * distance * radius * math.cos(alpha)))
 
 
-def beta(alpha, distance, radius, arm_extension):
+def circular_motion_rotor_angle(alpha, distance, radius):
 
-    return math.asin(math.sin(alpha) * radius / arm_extension)
+    return math.atan(math.sin(alpha) * radius / (radius * math.cos(alpha) + distance))
 
 
-def angular_speed(alpha, distance, radius):
+def circular_motion_arm_speed(t, k, distance, radius):
 
-    # the following line is the actual formula from wolfram alpha, but it does not work
-    # nominator = math.copysign(1, math.sin(alpha)) * radius * (distance * math.cos(alpha) - radius)
+    nominator = - distance * radius * k * math.sin(k * t)
 
-    # the following line is working for the circle center on the beta = 0 axis
-    nominator = radius * (distance * math.cos(alpha) - radius)
+    denominator = math.sqrt(pow(distance, 2) + 2 * distance * radius * math.cos(k * t) + pow(radius, 2))
 
-    denominator = -2 * distance * radius * math.cos(alpha) + pow(distance, 2) + pow(radius, 2)
+    return nominator / denominator
+
+
+def circular_motion_rotor_speed(t, k, distance, radius):
+
+    nominator = k * radius * (distance * math.cos(k * t) + radius)
+
+    denominator = 2 * distance * radius * math.cos(k * t) + pow(distance, 2) + pow(radius, 2)
 
     return nominator / denominator
