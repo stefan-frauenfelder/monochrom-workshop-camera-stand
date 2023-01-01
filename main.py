@@ -246,11 +246,13 @@ if __name__ == '__main__':
 
         # opto_inputs = sequent_inputs.get_opto_all(bus=config.sm_bus, bus_lock=config.sm_bus_lock, stack=2)
 
-        ports = sequent_ports.SequentPorts()
+        ports = sequent_ports.SequentPorts(5)
 
-        opto_inputs = ports.read_inputs()
+        while 1:
+            time.sleep(1)
+        # opto_inputs = ports.read_inputs()
 
-        ports.set_output(relay=2, switch_state=0)
+        # ports.set_output(relay=2, switch_state=0)
 
         # # Horizontal axis
         # arm = LocatedLinearStepper(commander=the_commander,

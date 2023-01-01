@@ -1,5 +1,6 @@
 import smbus
 import time
+import RPi.GPIO as GPIO
 
 # bus = smbus.SMBus(1)    # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
 
@@ -22,28 +23,39 @@ OPTO_STACK_LEVEL = 0x02
 
 class SequentPorts():
 
-    def __init__(self):
+    def __init__(self, interrupt_gpio_channel):
 
         self._sm_bus = smbus.SMBus(1)     # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
         time.sleep(1)             # sm_bus needs to settle
 
         # verify config of relay card, shall be 0
-        stack_level = RELAY_STACK_LEVEL
-
-        hardware_address = DEVICE_ADDRESS + (0x07 ^ stack_level)
+        hardware_address = DEVICE_ADDRESS + (0x07 ^ RELAY_STACK_LEVEL)
 
         cfg = self._sm_bus.read_byte_data(hardware_address, CFG_REG_ADD)
         if cfg != 0:
-            self._sm_bus.write_byte_data(hardware_address, CFG_REG_ADD, 0)
+            self._sm_bus.write_byte_data(hardware_address, CFG_REG_ADD, 0x00)
+
+        # turn all outputs off
+        self._sm_bus.write_byte_data(hardware_address, OUTPORT_REG_ADD, 0x00)
 
         # verify config of opto card, shall be 0
-        stack_level = OPTO_STACK_LEVEL
-
-        hardware_address = DEVICE_ADDRESS + (0x07 ^ stack_level)
+        hardware_address = DEVICE_ADDRESS + (0x07 ^ OPTO_STACK_LEVEL)
 
         cfg = self._sm_bus.read_byte_data(hardware_address, CFG_REG_ADD)
         if cfg != 0xff:
             self._sm_bus.write_byte_data(hardware_address, CFG_REG_ADD, 0xff)
+
+        # read from the inputs card for a firs time to clear the interrupt
+        hardware_address = DEVICE_ADDRESS + (0x07 ^ OPTO_STACK_LEVEL)
+        self._sm_bus.read_byte_data(hardware_address, INPORT_REG_ADD)
+
+        # listen to the interrupt line of the inputs card
+        GPIO.setup(interrupt_gpio_channel, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.add_event_detect(interrupt_gpio_channel, GPIO.FALLING, callback=self.interrupt)
+
+    def interrupt(self, channel):
+        opto_inputs = self.read_inputs()
+        print(opto_inputs)
 
     def read_inputs(self):
 
