@@ -389,7 +389,7 @@ class FiniteLinearStepper(OrientedLinearStepper):
     def __init__(self, commander, io_card, motor_address, name, power_relay,
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
                  distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
-                 near_soft_limit_gpio=False, far_soft_limit_gpio=False):
+                 near_soft_limit_port=False, far_soft_limit_port=False):
         super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
 
         self._near_soft_limit_location = False
@@ -404,17 +404,11 @@ class FiniteLinearStepper(OrientedLinearStepper):
 
         self._is_limited = False
 
-    def near_soft_limit_event(self, channel):
-        if GPIO.input(channel):    # edge was rising
-            self.near_soft_limit_enter()
-        else:                                   # edge was falling
-            self.near_soft_limit_leave()
-
-    def far_soft_limit_event(self, channel):
-        if GPIO.input(channel):     # edge was rising
-            self.far_soft_limit_enter()
-        else:                                   # edge was falling
-            self.far_soft_limit_leave()
+        # register callbacks using the sequence i/o-card (connected to the soft limit switches)
+        self._io_card.add_callback(near_soft_limit_port, 'RISING', self.near_soft_limit_enter)
+        self._io_card.add_callback(near_soft_limit_port, 'FALLING', self.near_soft_limit_leave)
+        self._io_card.add_callback(far_soft_limit_port, 'RISING', self.far_soft_limit_enter)
+        self._io_card.add_callback(far_soft_limit_port, 'FALLING', self.far_soft_limit_leave)
 
     def near_soft_limit_enter(self):
         print('Entering near soft limit of ' + self._name + ' axis.')
@@ -513,9 +507,9 @@ class LocatedLinearStepper(FiniteLinearStepper):
     def __init__(self, commander, io_card, motor_address, name, power_relay,
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
                  distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
-                 near_soft_limit_gpio=False, far_soft_limit_gpio=False,
+                 near_soft_limit_port=False, far_soft_limit_port=False,
                  position_offset=0):
-        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_gpio, far_soft_limit_gpio)
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_port, far_soft_limit_port)
 
         self._position_offset = position_offset
 
