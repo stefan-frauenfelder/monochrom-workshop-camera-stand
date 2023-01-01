@@ -4,6 +4,8 @@ import math
 import RPi.GPIO as GPIO
 from enum import Enum
 
+import sequent_ports
+
 LinearDirection = Enum('LinearDirection', 'positive negative')
 RotationalDirection = Enum('RotationalDirection', 'cw ccw')
 
@@ -23,21 +25,23 @@ class Commander():
             self._ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
             answer = self._ser.read_until(b'\r')  # read until '\r' appears
             answer = answer[1:].rstrip(b'\r')
-            # print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+            print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
             return answer
 
 
 class NanotecStepper():
-    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8):
+    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8):
         self.commander = commander
+        self._io_card = io_card
         self._motor_address = motor_address
         self._steps_per_motor_revolution = steps_per_motor_revolution
         self._micro_steps_per_step = micro_steps_per_step
         self._name = name
         self._power_relay = power_relay
-        self._motion_event = motion_event
 
-        time.sleep(0.5)
+        self._io_card.set_output(self._power_relay, 1)
+
+        time.sleep(2)
 
         self._command_letters = {
             "position_mode": b'p',
@@ -219,17 +223,14 @@ class NanotecStepper():
 
     def run(self):
         # start the motor with the current settings
-        self._motion_event.set()
         self.commander.write_command(self._motor_address, b'A')
 
     def stop(self):
         # stop the motor with the current ramp
-        self._motion_event.clear()
         self.commander.write_command(self._motor_address, b'S1')
 
     def immediate_stop(self):
         # stop the motor with the steep stop ramp
-        self._motion_event.clear()
         self.commander.write_command(self._motor_address, b'S0')
 
     def reset_position_error(self):
@@ -244,6 +245,7 @@ class NanotecStepper():
 
     def wait_for_ready(self, polling_time=0.5):
         # this is blocking and normally only called in its own thread
+        time.sleep(polling_time)
         while not self.is_ready:
             time.sleep(polling_time)
         self.stop()  # not sure this is needed
@@ -255,8 +257,8 @@ class NanotecStepper():
 
 class PhysicalLinearStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
-        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step)
 
         self._distance_per_motor_revolution = distance_per_motor_revolution
 
@@ -287,8 +289,8 @@ class PhysicalLinearStepper(NanotecStepper):
 
 class OrientedLinearStepper(PhysicalLinearStepper):
 
-    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6):
-        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
+    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6):
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
 
         self._inverse_direction = inverse_direction
         self._origin_is_set = False
@@ -352,7 +354,7 @@ class OrientedLinearStepper(PhysicalLinearStepper):
             previous_mode = self.mode
             previous_micro_steps_per_step = self.micro_steps_per_step
 
-            print('Finding origin of ' + self._name + ' axis.')
+            print('Finding origin of ' + self._name + ' linear axis.')
 
             self.mode = "external_reference_run"
             self.micro_steps_per_step = 1   # full step mode
@@ -384,11 +386,11 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
 class FiniteLinearStepper(OrientedLinearStepper):
 
-    def __init__(self, commander, motor_address, name, power_relay, motion_event,
+    def __init__(self, commander, io_card, motor_address, name, power_relay,
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
                  distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
                  near_soft_limit_gpio=False, far_soft_limit_gpio=False):
-        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
 
         self._near_soft_limit_location = False
         self._far_soft_limit_location = False
@@ -508,12 +510,12 @@ class FiniteLinearStepper(OrientedLinearStepper):
 
 class LocatedLinearStepper(FiniteLinearStepper):
 
-    def __init__(self, commander, motor_address, name, power_relay, motion_event,
+    def __init__(self, commander, io_card, motor_address, name, power_relay,
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
                  distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
                  near_soft_limit_gpio=False, far_soft_limit_gpio=False,
                  position_offset=0):
-        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_gpio, far_soft_limit_gpio)
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_gpio, far_soft_limit_gpio)
 
         self._position_offset = position_offset
 
@@ -537,8 +539,8 @@ class LocatedLinearStepper(FiniteLinearStepper):
 
 class PhysicalRotationalStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2):
-        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=2 * math.pi):
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step)
 
         self._angle_per_motor_revolution = angle_per_motor_revolution
 
@@ -559,6 +561,9 @@ class PhysicalRotationalStepper(NanotecStepper):
 
     def speed(self, value):
         # convert from physical speed in radians per second to (micro) steps per second of the motor
+        result = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
+        print('speed conversion:' + str(value) + ' ' + str(self.micro_steps_per_step) + ' ' + str(self.steps_per_motor_revolution) + ' ' + str(self._angle_per_motor_revolution))
+
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._angle_per_motor_revolution)
     speed = property(None, speed)
 
@@ -569,8 +574,8 @@ class PhysicalRotationalStepper(NanotecStepper):
 
 class OrientedRotationalStepper(PhysicalRotationalStepper):
 
-    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2, inverse_direction=False, safe_angle=3):
-        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, angle_per_motor_revolution)
+    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=2 * math.pi, inverse_direction=False, safe_angle=3):
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, angle_per_motor_revolution)
 
         self._inverse_direction = inverse_direction
         self._origin_is_set = False
@@ -648,6 +653,7 @@ class OrientedRotationalStepper(PhysicalRotationalStepper):
             self.mode = "relative_positioning"
             self.speed = 0.2
             self.signed_angle = sign_modifier * -math.pi / 4
+            print('Backing up...')
             self.blocking_run()
 
             # activate the appropriate mode

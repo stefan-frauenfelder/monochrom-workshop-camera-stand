@@ -149,29 +149,18 @@ def rotary_axes_origin_run():
     find_origin_tilt_thread.join()
 
 
-def get_normalized_bit(value, bit_index):
-    return (value >> bit_index) & 1
-
-
-def my_function():
-    print('Yhay!')
-
-
 if __name__ == '__main__':
+
+    init()
+
+    SEQUENT_INTN_GPIO = 5
+
+    io_card = sequent_ports.SequentPorts(SEQUENT_INTN_GPIO)
 
     try:
 
         print(sys.executable)
         print(sys.version)
-
-        # create global thread-safe events for motion surveilance
-        arm_motion = threading.Event()
-        lift_motion = threading.Event()
-        rotor_motion = threading.Event()
-        pan_motion = threading.Event()
-        tilt_motion = threading.Event()
-
-        init()
 
         serial_port = serial.Serial(port='/dev/ttyUSB0',
                                     baudrate=115200,
@@ -184,29 +173,22 @@ if __name__ == '__main__':
 
         the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
-        ports = sequent_ports.SequentPorts(5)
-
-        ports.add_callback(2, 'FALLING', my_function)
-
-        while 1:
-            time.sleep(1)
-
         # # Horizontal axis
         # arm = LocatedLinearStepper(commander=the_commander,
+        #                            io_card=io_card,
         #                            motor_address=1,
         #                            name='arm',
         #                            power_relay=1,
-        #                            motion_event=arm_motion,
         #                            inverse_direction=False,
         #                            safe_length=0.6,
         #                            position_offset=0.260)
 
         # # Vertical axis
         # lift = LocatedLinearStepper(commander=the_commander,
+        #                             io_card=io_card,
         #                             motor_address=2,
         #                             name='lift',
         #                             power_relay=2,
-        #                             motion_event=lift_motion,
         #                             inverse_direction=True,
         #                             safe_length=0.6,
         #                             position_offset=0.740)
@@ -215,41 +197,43 @@ if __name__ == '__main__':
         # radians_per_motor_revolution_of_rotor = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
         # rotor = OrientedRotationalStepper(commander=the_commander,
+        #                                   io_card=io_card,
         #                                   motor_address=3,
         #                                   name='rotor',
         #                                   power_relay=3,
-        #                                   motion_event=rotor_motion,
         #                                   angle_per_motor_revolution=radians_per_motor_revolution_of_rotor)
 
         # rotor.ramp_type = "jerkfree"
         # rotor.jerk = 1
 
         # pan = OrientedRotationalStepper(commander=the_commander,
+        #                                 io_card=io_card,
         #                                 motor_address=4,
         #                                 name='pan',
         #                                 power_relay=4,
-        #                                 motion_event=pan_motion,
         #                                 inverse_direction=True,
         #                                 angle_per_motor_revolution=2 * math.pi)
 
         # pan.ramp_type = "jerkfree"
         # pan.jerk = 5
 
-        # tilt = OrientedRotationalStepper(commander=the_commander,
-        #                                  motor_address=5,
-        #                                  name='tilt',
-        #                                  power_relay=5,
-        #                                  motion_event=tilt_motion,
-        #                                  inverse_direction=True,
-        #                                  angle_per_motor_revolution=2 * math.pi)
+        tilt = OrientedRotationalStepper(commander=the_commander,
+                                         io_card=io_card,
+                                         motor_address=5,
+                                         name='tilt',
+                                         power_relay=5,
+                                         inverse_direction=True,
+                                         angle_per_motor_revolution=2 * math.pi)
 
-        # tilt.ramp_type = "jerkfree"
-        # tilt.jerk = 5
+        tilt.ramp_type = "jerkfree"
+        tilt.jerk = 5
 
-        # # linear_axes_limit_run()
-        # rotary_axes_origin_run()
+        tilt.find_origin(direction=RotationalDirection.ccw)
 
-        # flat_circle_run(distance=0.5, radius=0.1, duration=20, step_frequency=10)
+        # linear_axes_limit_run()
+        #rotary_axes_origin_run()
+
+        #flat_circle_run(distance=0.5, radius=0.1, duration=20, step_frequency=10)
 
     except KeyboardInterrupt:
         # here you put any code you want to run before the program
@@ -264,14 +248,13 @@ if __name__ == '__main__':
 
     finally:
 
-        # # power down all motors
-        # for i in range(1, 6):
-        #     #switch_relay(config.sm_bus, i, 0)
-        #     time.sleep(0.2)
-        # print('Motors powered down.')
+        # power down all motors
+        for i in range(1, 6):
+            io_card.set_output(i, 0)
+            time.sleep(0.2)
+        print('Motors powered down.')
 
-        # # GPIO.cleanup()  # this ensures a clean exit
-        pass
-        # print('IO ports cleaned up.')
+        GPIO.cleanup()  # this ensures a clean exit
+        print('IO ports cleaned up.')
 
 # end of main
