@@ -28,12 +28,16 @@ class Commander():
 
 
 class NanotecStepper():
-    def __init__(self, commander, motor_address=1, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8):
+    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8):
         self.commander = commander
         self._motor_address = motor_address
         self._steps_per_motor_revolution = steps_per_motor_revolution
         self._micro_steps_per_step = micro_steps_per_step
         self._name = name
+        self._power_relay = power_relay
+        self._motion_event = motion_event
+
+        time.sleep(0.5)
 
         self._command_letters = {
             "position_mode": b'p',
@@ -215,14 +219,17 @@ class NanotecStepper():
 
     def run(self):
         # start the motor with the current settings
+        self._motion_event.set()
         self.commander.write_command(self._motor_address, b'A')
 
     def stop(self):
         # stop the motor with the current ramp
+        self._motion_event.clear()
         self.commander.write_command(self._motor_address, b'S1')
 
     def immediate_stop(self):
         # stop the motor with the steep stop ramp
+        self._motion_event.clear()
         self.commander.write_command(self._motor_address, b'S0')
 
     def reset_position_error(self):
@@ -248,8 +255,8 @@ class NanotecStepper():
 
 class PhysicalLinearStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12):
+        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step)
 
         self._distance_per_motor_revolution = distance_per_motor_revolution
 
@@ -280,8 +287,8 @@ class PhysicalLinearStepper(NanotecStepper):
 
 class OrientedLinearStepper(PhysicalLinearStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
+    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6):
+        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution)
 
         self._inverse_direction = inverse_direction
         self._origin_is_set = False
@@ -377,14 +384,11 @@ class OrientedLinearStepper(PhysicalLinearStepper):
 
 class FiniteLinearStepper(OrientedLinearStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName',
+    def __init__(self, commander, motor_address, name, power_relay, motion_event,
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
                  distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
                  near_soft_limit_gpio=False, far_soft_limit_gpio=False):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
-
-        self._near_soft_limit_gpio = near_soft_limit_gpio
-        self._far_soft_limit_gpio = far_soft_limit_gpio
+        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
 
         self._near_soft_limit_location = False
         self._far_soft_limit_location = False
@@ -397,12 +401,6 @@ class FiniteLinearStepper(OrientedLinearStepper):
         self._safety_margin = 0.01  # the margin between the soft limit and the safe zone
 
         self._is_limited = False
-
-        GPIO.setup(self._near_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self._far_soft_limit_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-        GPIO.add_event_detect(self._near_soft_limit_gpio, GPIO.BOTH, callback=self.near_soft_limit_event)
-        GPIO.add_event_detect(self._far_soft_limit_gpio, GPIO.BOTH, callback=self.far_soft_limit_event)
 
     def near_soft_limit_event(self, channel):
         if GPIO.input(channel):    # edge was rising
@@ -510,12 +508,12 @@ class FiniteLinearStepper(OrientedLinearStepper):
 
 class LocatedLinearStepper(FiniteLinearStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName',
+    def __init__(self, commander, motor_address, name, power_relay, motion_event,
                  steps_per_motor_revolution=200, micro_steps_per_step=8,
                  distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
                  near_soft_limit_gpio=False, far_soft_limit_gpio=False,
                  position_offset=0):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_gpio, far_soft_limit_gpio)
+        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length, near_soft_limit_gpio, far_soft_limit_gpio)
 
         self._position_offset = position_offset
 
@@ -539,8 +537,8 @@ class LocatedLinearStepper(FiniteLinearStepper):
 
 class PhysicalRotationalStepper(NanotecStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2):
+        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step)
 
         self._angle_per_motor_revolution = angle_per_motor_revolution
 
@@ -571,8 +569,8 @@ class PhysicalRotationalStepper(NanotecStepper):
 
 class OrientedRotationalStepper(PhysicalRotationalStepper):
 
-    def __init__(self, commander, motor_address, name='DefaultName', steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2, inverse_direction=False, safe_angle=3):
-        super().__init__(commander, motor_address, name, steps_per_motor_revolution, micro_steps_per_step, angle_per_motor_revolution)
+    def __init__(self, commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=0.2, inverse_direction=False, safe_angle=3):
+        super().__init__(commander, motor_address, name, power_relay, motion_event, steps_per_motor_revolution, micro_steps_per_step, angle_per_motor_revolution)
 
         self._inverse_direction = inverse_direction
         self._origin_is_set = False
