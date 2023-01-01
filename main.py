@@ -13,66 +13,6 @@ from bitstring import BitArray
 from nanotec import *
 from camera_stand_math import *
 
-# def linear_ramp(LinearMotor, speed_step_frequency=10, cycle_duration=8, max_speed=0.1):
-
-#     speed_step_periode = 1.0 / speed_step_frequency
-
-#     num_speed_steps = int((cycle_duration / 4.0) / speed_step_periode)
-
-#     horizontal_slider.run()
-
-#     for half_cycle in range(2):
-
-#         horizontal_slider.direction = half_cycle
-
-#         for speed_step in range(num_speed_steps):
-#             horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
-#             time.sleep(speed_step_periode)
-
-#         for speed_step in range(num_speed_steps, 0, -1):
-#             horizontal_slider.speed = max_speed * (speed_step / num_speed_steps)
-#             time.sleep(speed_step_periode)
-
-#     horizontal_slider.stop()
-
-
-# def circle_run(step_frequency=10, cycle_duration=8, max_speed=0.1):
-
-#     step_periode = 1.0 / step_frequency
-
-#     num_steps_for_cycle = int(cycle_duration / step_periode)
-
-#     horizontal_slider.run()
-#     vertical_slider.run()
-
-#     for step in range(num_steps_for_cycle):
-
-#         angle = step / num_steps_for_cycle * 2.0 * math.pi
-
-#         horizontal_speed_scaling = math.sin(angle)
-#         vertical_speed_scaling = math.cos(angle)
-
-#         if horizontal_speed_scaling > 0:
-#             horizontal_slider.direction = 0
-#         else:
-#             horizontal_slider.direction = 1
-#             horizontal_speed_scaling = -horizontal_speed_scaling
-
-#         horizontal_slider.speed = horizontal_speed_scaling * max_speed
-
-#         if vertical_speed_scaling > 0:
-#             vertical_slider.direction = 0
-#         else:
-#             vertical_slider.direction = 1
-#             vertical_speed_scaling = -vertical_speed_scaling
-
-#         vertical_slider.speed = vertical_speed_scaling * max_speed
-
-#         time.sleep(step_periode)
-
-#     horizontal_slider.stop()
-#     vertical_slider.stop()
-
 
 def flat_circle_run(distance=0.6, radius=0.1, duration=20, step_frequency=10):
 
@@ -213,6 +153,10 @@ def get_normalized_bit(value, bit_index):
     return (value >> bit_index) & 1
 
 
+def my_function():
+    print('Yhay!')
+
+
 if __name__ == '__main__':
 
     try:
@@ -240,19 +184,12 @@ if __name__ == '__main__':
 
         the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
-        # # start motion surveilance in a separate thread
-        # motion_surveilance_thread = threading.Thread(target=start_motion_surveilance)
-        # motion_surveilance_thread.start()
-
-        # opto_inputs = sequent_inputs.get_opto_all(bus=config.sm_bus, bus_lock=config.sm_bus_lock, stack=2)
-
         ports = sequent_ports.SequentPorts(5)
+
+        ports.add_callback(2, 'FALLING', my_function)
 
         while 1:
             time.sleep(1)
-        # opto_inputs = ports.read_inputs()
-
-        # ports.set_output(relay=2, switch_state=0)
 
         # # Horizontal axis
         # arm = LocatedLinearStepper(commander=the_commander,
