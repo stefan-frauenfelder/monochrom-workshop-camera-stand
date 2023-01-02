@@ -330,12 +330,19 @@ class OrientedLinearStepper(PhysicalLinearStepper):
                 self.speed = -value
     signed_speed = property(None, signed_speed)
 
-    def signed_position(self):
+    def get_signed_position(self):
         if not self._inverse_direction:  # direction is default
             return self.position
         else:  # direction is inverse
             return -self.position
-    signed_position = property(signed_position, None)
+
+    def set_signed_position(self, value):
+        if not self._inverse_direction:  # direction is default
+            self.distance = value
+        else:  # direction is inverse
+            self.distance = -value
+
+    signed_position = property(get_signed_position, set_signed_position)
 
     def move(self, distance, speed=False):
 
@@ -497,7 +504,7 @@ class FiniteLinearStepper(OrientedLinearStepper):
         return self.signed_position - self._safety_margin - self._near_soft_limit_location
 
     def set_limited_position(self, value):
-        self.signed_distance = value + self._safety_margin + self._near_soft_limit_location
+        self.signed_position = value + self._safety_margin + self._near_soft_limit_location
 
     limited_position = property(get_limited_position, set_limited_position)
 

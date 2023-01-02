@@ -14,14 +14,47 @@ from nanotec import *
 from camera_stand_math import *
 
 
-def flat_circle_run(distance=0.6, radius=0.1, duration=20, step_frequency=10):
+def flat_circle_run(distance=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0, stop_angle=2 * math.pi):
 
+    default_linear_speed = 0.05
+    default_rotor_speed = 0.1
+
+    input("Press Enter to continue...")
+
+    # move arm to the starting point
+    arm_start_position = circular_motion_arm_position(start_angle, distance, radius)
+    print('Arm start position: ' + str(arm_start_position))
+    arm.goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
+    arm.blocking_run()
+
+    input("Press Enter to continue...")
+
+    # move rotor to starting point
+    rotor_starting_angle = circular_motion_rotor_angle(start_angle, distance, radius)
+    rotor.move(rotor_starting_angle, default_rotor_speed)
+    rotor.blocking_run()
+
+    input("Press Enter to continue...")
+
+    # move the lift to above target height
+    lift.goto_absolute_position(position=1.0, speed=default_linear_speed)
+    lift.blocking_run()
+
+    input("Press Enter to continue...")
+
+    # point the pen down
     tilt.move(angle=-math.pi / 2, speed=6)
     tilt.blocking_run()
 
-    lift.move(distance=-0.1, speed=0.03)
+    input("Press Enter to continue...")
+
+    # lower the pen to the paper
+    lift.goto_absolute_position(position=0.82, speed=default_linear_speed)
     lift.blocking_run()
 
+    input("Press Enter to continue...")
+
+    # get arm and rotor ready for circular motion using speed mode
     arm.mode = "speed_mode"
     arm.ramp_type = "jerkfree"
     arm.jerk = 5
@@ -37,17 +70,17 @@ def flat_circle_run(distance=0.6, radius=0.1, duration=20, step_frequency=10):
     first_loop = 1
     t = 0
 
+    k = (stop_angle - start_angle) / duration
+
     while t < duration:
+
+        # alpha = k * t
 
         t = time.time() - start_time
 
-        k = math.pi * 2 / duration
+        rotor.signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
 
-        alpha = k * t
-
-        rotor.signed_speed = circular_motion_rotor_speed(t, k, distance, radius)
-
-        arm.signed_speed = circular_motion_arm_speed(t, k, distance, radius)
+        arm.signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
 
         if first_loop:
             arm.run()
@@ -61,9 +94,15 @@ def flat_circle_run(distance=0.6, radius=0.1, duration=20, step_frequency=10):
 
     time.sleep(1)
 
-    lift.move(distance=0.1, speed=0.03)
+    input("Press Enter to continue...")
+
+    # lift the pen from the paper
+    lift.goto_absolute_position(position=1.0, speed=default_linear_speed)
     lift.blocking_run()
 
+    input("Press Enter to continue...")
+
+    # raise the pen straight
     tilt.move(angle=math.pi / 2, speed=6)
     tilt.blocking_run()
 
@@ -181,7 +220,7 @@ if __name__ == '__main__':
                                    power_relay=1,
                                    inverse_direction=False,
                                    safe_length=0.6,
-                                   position_offset=0.260,
+                                   position_offset=0.258,
                                    near_soft_limit_port=1,
                                    far_soft_limit_port=0)
 
@@ -193,7 +232,7 @@ if __name__ == '__main__':
                                     power_relay=2,
                                     inverse_direction=True,
                                     safe_length=0.6,
-                                    position_offset=0.740,
+                                    position_offset=0.790,
                                     near_soft_limit_port=3,
                                     far_soft_limit_port=2)
 
@@ -210,34 +249,40 @@ if __name__ == '__main__':
         rotor.ramp_type = "jerkfree"
         rotor.jerk = 1
 
-        # pan = OrientedRotationalStepper(commander=the_commander,
-        #                                 io_card=io_card,
-        #                                 motor_address=4,
-        #                                 name='pan',
-        #                                 power_relay=4,
-        #                                 inverse_direction=True,
-        #                                 angle_per_motor_revolution=2 * math.pi)
+        pan = OrientedRotationalStepper(commander=the_commander,
+                                        io_card=io_card,
+                                        motor_address=4,
+                                        name='pan',
+                                        power_relay=4,
+                                        inverse_direction=True,
+                                        angle_per_motor_revolution=2 * math.pi)
 
-        # pan.ramp_type = "jerkfree"
-        # pan.jerk = 5
+        pan.ramp_type = "jerkfree"
+        pan.jerk = 5
 
-        # tilt = OrientedRotationalStepper(commander=the_commander,
-        #                                  io_card=io_card,
-        #                                  motor_address=5,
-        #                                  name='tilt',
-        #                                  power_relay=5,
-        #                                  inverse_direction=True,
-        #                                  angle_per_motor_revolution=2 * math.pi)
+        tilt = OrientedRotationalStepper(commander=the_commander,
+                                         io_card=io_card,
+                                         motor_address=5,
+                                         name='tilt',
+                                         power_relay=5,
+                                         inverse_direction=True,
+                                         angle_per_motor_revolution=2 * math.pi)
 
-        # tilt.ramp_type = "jerkfree"
-        # tilt.jerk = 5
+        tilt.ramp_type = "jerkfree"
+        tilt.jerk = 5
 
-        linear_axes_limit_run()
-        # rotary_axes_origin_run()
+        # rotor.find_origin(limit_switch='external', direction=RotationalDirection.cw)
 
         time.sleep(2)
 
-        #flat_circle_run(distance=0.5, radius=0.1, duration=20, step_frequency=10)
+        linear_axes_limit_run()
+        rotary_axes_origin_run()
+
+        time.sleep(2)
+
+        flat_circle_run(distance=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0.5, stop_angle=2 * math.pi - 0.5)
+
+        time.sleep(2)
 
     except KeyboardInterrupt:
         # here you put any code you want to run before the program
