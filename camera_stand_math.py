@@ -16,6 +16,13 @@ def circular_motion_rotor_angle(alpha, distance, radius):
     return math.atan(math.sin(alpha) * radius / (radius * math.cos(alpha) + distance))
 
 
+def circular_motion_pan_angle(alpha, distance, radius):
+
+    rotor_angle = circular_motion_rotor_angle(alpha, distance, radius)
+
+    return alpha - rotor_angle - math.pi
+
+
 def circular_motion_arm_speed(t, k, a_0, distance, radius):
 
     nominator = - distance * radius * k * math.sin(k * t + a_0)
@@ -28,6 +35,15 @@ def circular_motion_arm_speed(t, k, a_0, distance, radius):
 def circular_motion_rotor_speed(t, k, a_0, distance, radius):
 
     nominator = k * radius * (distance * math.cos(k * t + a_0) + radius)
+
+    denominator = 2 * distance * radius * math.cos(k * t + a_0) + pow(distance, 2) + pow(radius, 2)
+
+    return nominator / denominator
+
+
+def circular_motion_pan_speed(t, k, a_0, distance, radius):
+
+    nominator = distance * k * (distance + radius * math.cos(k * t + a_0))
 
     denominator = 2 * distance * radius * math.cos(k * t + a_0) + pow(distance, 2) + pow(radius, 2)
 

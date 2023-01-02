@@ -686,3 +686,87 @@ class OrientedRotationalStepper(PhysicalRotationalStepper):
         else:
             # must not happen
             raise ValueError('Find origin must not be called for an already referenced motor. Power cycle the motor before every new run of this software.')
+
+
+class FiniteLinearStepper(OrientedLinearStepper):
+
+    def __init__(self, commander, io_card, motor_address, name, power_relay,
+                 steps_per_motor_revolution=200, micro_steps_per_step=8,
+                 distance_per_motor_revolution=0.12, inverse_direction=False, safe_length=0.6,
+                 near_soft_limit_port=False, far_soft_limit_port=False):
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, distance_per_motor_revolution, inverse_direction, safe_length)
+
+        # hardcoded values for now
+        self._near_soft_limit_location = -math.pi
+        self._far_soft_limit_location = math.pi
+
+        self._is_off_near_soft_limit = False
+        self._is_off_far_soft_limit = False
+
+        self._safety_margin = 0.1  # the margin between the soft limit and the safe zone
+
+        self._safe_travel_distance = 2 * math.pi - (2 * self._safety_margin)
+
+        self._is_limited = True
+
+        # # register callbacks using the sequence i/o-card (connected to the soft limit switches)
+        # self._io_card.add_callback(near_soft_limit_port, 'RISING', self.near_soft_limit_enter)
+        # self._io_card.add_callback(near_soft_limit_port, 'FALLING', self.near_soft_limit_leave)
+        # self._io_card.add_callback(far_soft_limit_port, 'RISING', self.far_soft_limit_enter)
+        # self._io_card.add_callback(far_soft_limit_port, 'FALLING', self.far_soft_limit_leave)
+
+    def near_soft_limit_enter(self):
+        print('Entering near soft limit of ' + self._name + ' axis.')
+        self._is_off_near_soft_limit = True
+        self.off_limits()
+
+    def near_soft_limit_leave(self):
+        print('Leaving near soft limit of ' + self._name + ' axis.')
+        self._is_off_near_soft_limit = False
+
+    def far_soft_limit_enter(self):
+        print('Entering far soft limit of ' + self._name + ' axis.')
+        self._is_off_far_soft_limit = True
+        self.off_limits()
+
+    def far_soft_limit_leave(self):
+        print('Leaving far soft limit of ' + self._name + ' axis.')
+        self._is_off_far_soft_limit = False
+
+    def off_limits(self):
+        if self._is_limited:
+            self.stop()
+            print('WARNING: ' + self._name + ' axis stopped due to soft limit violation.')
+
+    def get_limited_position(self):
+        return self.signed_position
+
+    def set_limited_position(self, value):
+        self.signed_position = value
+
+    limited_position = property(get_limited_position, set_limited_position)
+
+
+class LocatedRotationalStepper(LimitedRotationalStepper):
+
+    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, angle_per_motor_revolution=2 * math.pi, inverse_direction=False, safe_angle=3, position_offset=0):
+        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, angle_per_motor_revolution, inverse_direction, safe_angle)
+
+    self._position_offset = position_offset
+
+    def get_absolute_position(self):
+        return self.limited_position + self._position_offset
+
+    def set_absolute_position(self, value):
+        self.limited_position = value - self._position_offset
+
+    absolute_position = property(get_absolute_position, set_absolute_position)
+
+    def goto_absolute_position(self, position, speed):
+        if position > self._near_soft_limit_location and position < self._far_soft_limit_location:  # Todo: adapt once real limits are defined
+            self.mode = "absolute_positioning"
+            if speed:
+                self.signed_speed = speed
+            self.absolute_position = position
+        else:
+            raise ValueError('Position to go to is outside safe travel distance.')
