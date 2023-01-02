@@ -54,18 +54,10 @@ def init():
 #         return
 
 
-def linear_axes_limit_run():
+def homing_run():
 
-    arm.ramp_type = "jerkfree"
-    arm.jerk = 5
-
-    lift.ramp_type = "jerkfree"
-    lift.jerk = 5
-
-    print("Finding limits of all axes...")
-
-    find_limits_arm_thread = threading.Thread(target=arm.find_limits)
-    find_limits_lift_thread = threading.Thread(target=lift.find_limits)
+    find_limits_arm_thread = threading.Thread(target=arm.find_linear_stepper_limits)
+    find_limits_lift_thread = threading.Thread(target=lift.find_linear_stepper_limits)
 
     find_limits_arm_thread.start()
     find_limits_lift_thread.start()
@@ -73,18 +65,13 @@ def linear_axes_limit_run():
     find_limits_arm_thread.join()
     find_limits_lift_thread.join()
 
-    print("Limits of all axes set.")
-
-
-def rotary_axes_origin_run():
-
-    # rotor.find_origin(limit_switch='external', direction=RotationalDirection.cw)
+    # rotor.find_origin(limit_switch='external', direction=Direction.negative)
 
     def find_pan_origin():
-        pan.find_origin(direction=RotationalDirection.cw)
+        pan.find_rotational_stepper_origin(limit_switch='internal', direction=Direction.negative)
 
     def find_tilt_origin():
-        tilt.find_origin(direction=RotationalDirection.ccw)
+        tilt.find_rotational_stepper_origin(limit_switch='internal', direction=Direction.positive)
 
     find_origin_pan_thread = threading.Thread(target=find_pan_origin)
     find_origin_tilt_thread = threading.Thread(target=find_tilt_origin)
@@ -121,82 +108,72 @@ if __name__ == '__main__':
         the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
 
         # Horizontal axis
-        arm = LocatedLinearStepper(commander=the_commander,
-                                   io_card=io_card,
-                                   motor_address=1,
-                                   name='arm',
-                                   power_relay=1,
-                                   inverse_direction=False,
-                                   safe_length=0.6,
-                                   position_offset=0.258,
-                                   near_soft_limit_port=1,
-                                   far_soft_limit_port=0)
+        arm = LocatedStepper(commander=the_commander,
+                             io_card=io_card,
+                             motor_address=1,
+                             name='arm',
+                             power_relay=1,
+                             steps_per_motor_revolution=200,
+                             micro_steps_per_step=8,
+                             si_unit_per_motor_revolution=0.12,
+                             inverse_direction=False,
+                             approx_safe_travel=0.6,
+                             position_offset=0.258,
+                             near_soft_limit_port=1,
+                             far_soft_limit_port=0)
 
         # Vertical axis
-        lift = LocatedLinearStepper(commander=the_commander,
-                                    io_card=io_card,
-                                    motor_address=2,
-                                    name='lift',
-                                    power_relay=2,
-                                    inverse_direction=True,
-                                    safe_length=0.6,
-                                    position_offset=0.790,
-                                    near_soft_limit_port=3,
-                                    far_soft_limit_port=2)
+        lift = LocatedStepper(commander=the_commander,
+                              io_card=io_card,
+                              motor_address=2,
+                              name='lift',
+                              power_relay=2,
+                              steps_per_motor_revolution=200,
+                              micro_steps_per_step=8,
+                              si_unit_per_motor_revolution=0.12,
+                              inverse_direction=True,
+                              approx_safe_travel=0.6,
+                              position_offset=0.812,
+                              near_soft_limit_port=3,
+                              far_soft_limit_port=2)
 
         # Rotor
         radians_per_motor_revolution_of_rotor = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-        rotor = OrientedRotationalStepper(commander=the_commander,
-                                          io_card=io_card,
-                                          motor_address=3,
-                                          name='rotor',
-                                          power_relay=3,
-                                          angle_per_motor_revolution=radians_per_motor_revolution_of_rotor)
+        rotor = OrientedStepper(commander=the_commander,
+                                io_card=io_card,
+                                motor_address=3,
+                                name='rotor',
+                                power_relay=3,
+                                inverse_direction=True,
+                                si_unit_per_motor_revolution=radians_per_motor_revolution_of_rotor)
 
         rotor.ramp_type = "jerkfree"
         rotor.jerk = 1
 
-        pan = OrientedRotationalStepper(commander=the_commander,
-                                        io_card=io_card,
-                                        motor_address=4,
-                                        name='pan',
-                                        power_relay=4,
-                                        inverse_direction=True,
-                                        angle_per_motor_revolution=2 * math.pi)
+        pan = OrientedStepper(commander=the_commander,
+                              io_card=io_card,
+                              motor_address=4,
+                              name='pan',
+                              power_relay=4,
+                              inverse_direction=False,
+                              si_unit_per_motor_revolution=(2 * math.pi))
 
-        pan.ramp_type = "jerkfree"
-        pan.jerk = 5
-
-        tilt = OrientedRotationalStepper(commander=the_commander,
-                                         io_card=io_card,
-                                         motor_address=5,
-                                         name='tilt',
-                                         power_relay=5,
-                                         inverse_direction=True,
-                                         angle_per_motor_revolution=2 * math.pi)
-
-        tilt.ramp_type = "jerkfree"
-        tilt.jerk = 5
-
-        # rotor.find_origin(limit_switch='external', direction=RotationalDirection.cw)
+        tilt = OrientedStepper(commander=the_commander,
+                               io_card=io_card,
+                               motor_address=5,
+                               name='tilt',
+                               power_relay=5,
+                               inverse_direction=False,
+                               si_unit_per_motor_revolution=(2 * math.pi))
 
         time.sleep(2)
 
-        linear_axes_limit_run()
-        rotary_axes_origin_run()
+        homing_run()
 
         time.sleep(2)
 
-        # create a dictionary containing all the axes for easy passing to motion control functions
-        steppers = {
-            'arm': arm,
-            'lift': lift,
-            'rotor': rotor,
-            'pan': pan,
-            'tilt': tilt}
-
-        flat_circle_run(distance=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0.5, stop_angle=2 * math.pi - 0.5)
+        # flat_circle_run(travel=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0.5, stop_angle=2 * math.pi - 0.5)
 
         time.sleep(2)
 
