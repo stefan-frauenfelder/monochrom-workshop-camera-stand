@@ -467,7 +467,7 @@ class FiniteStepper(OrientedStepper):
         self._is_off_near_soft_limit = False
         self._is_off_far_soft_limit = False
 
-        self._safe_travel_travel = False
+        self._safe_travel_range = False
 
         self._safety_margin = 0.01  # the margin between the soft limit and the safe zone
 
@@ -502,7 +502,7 @@ class FiniteStepper(OrientedStepper):
 
     def off_limits(self):
         if self._is_limited:
-            self.stop()
+            self.immediate_stop()
             print('WARNING: ' + self._name + ' axis stopped due to soft limit violation.')
 
     def find_linear_stepper_limits(self):
@@ -554,22 +554,45 @@ class FiniteStepper(OrientedStepper):
         self._far_soft_limit_location = current_position
         print('Set far soft limit location of ' + self._name + ' axis to ' + str(current_position) + '.')
 
-        self._safe_travel_travel = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
+        self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
 
         # move to center
-        self.move(travel=- self._safe_travel_travel / 2, speed=0.2)
+        self.move(travel=- self._safe_travel_range / 2, speed=0.2)
         self.blocking_run()
 
         self._is_limited = True
 
-        print('Safe travel travel of ' + self._name + ' axis is ' + str(self._safe_travel_travel) + '.')
+        print('Safe travel of ' + self._name + ' axis is ' + str(self._safe_travel_range) + '.')
         print('Soft limit guard of ' + self._name + ' axis activated.')
 
+    def set_fake_rotational_stepper_limits(self):
+
+        self._near_soft_limit_location = - math.pi
+        self._far_soft_limit_location = math.pi
+        self._safety_margin = math.pi / 18  # 10°
+        self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
+
     def get_limited_position(self):
-        return self.signed_position - self._safety_margin - self._near_soft_limit_location
+        return self.signed_position
 
     def set_limited_position(self, value):
-        self.signed_position = value + self._safety_margin + self._near_soft_limit_location
+
+        lower_limit = self._near_soft_limit_location + self._safety_margin
+        upper_limit = lower_limit + self._safe_travel_range
+
+        if value >= lower_limit and value <= upper_limit:  # all good
+            self.signed_position = value
+
+        elif value < lower_limit:
+            print('WARNING: Position to go to is outside safe travel range. ' + self._name + ' axis movement limited!')
+            self.signed_position = lower_limit
+
+        elif value > upper_limit:
+            print('WARNING: Position to go to is outside safe travel range. ' + self._name + ' axis movement limited!')
+            self.signed_position = upper_limit
+
+        else:
+            raise ValueError('Okay, something is fucked up here.')
 
     limited_position = property(get_limited_position, set_limited_position)
 
@@ -594,10 +617,6 @@ class LocatedStepper(FiniteStepper):
     absolute_position = property(get_absolute_position, set_absolute_position)
 
     def goto_absolute_position(self, position, speed):
-        if position > self._position_offset and position < (self._position_offset + self._safe_travel_travel):
-            self.mode = "absolute_positioning"
-            if speed:
-                self.signed_speed = speed
-            self.absolute_position = position
-        else:
-            raise ValueError('Position to go to is outside safe travel travel.')
+        self.mode = "absolute_positioning"
+        self.signed_speed = speed
+        self.absolute_position = position

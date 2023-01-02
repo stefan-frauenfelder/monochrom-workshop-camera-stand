@@ -14,6 +14,8 @@ from nanotec import *
 from motion_control import *
 from camera_stand_math import *
 
+pi = math.pi
+
 
 def init():
 
@@ -82,6 +84,9 @@ def homing_run():
     find_origin_pan_thread.join()
     find_origin_tilt_thread.join()
 
+    pan.set_fake_rotational_stepper_limits()
+    tilt.set_fake_rotational_stepper_limits()
+
 
 if __name__ == '__main__':
 
@@ -118,7 +123,7 @@ if __name__ == '__main__':
                              si_unit_per_motor_revolution=0.12,
                              inverse_direction=False,
                              approx_safe_travel=0.6,
-                             position_offset=0.258,
+                             position_offset=0.157,
                              near_soft_limit_port=1,
                              far_soft_limit_port=0)
 
@@ -133,43 +138,51 @@ if __name__ == '__main__':
                               si_unit_per_motor_revolution=0.12,
                               inverse_direction=True,
                               approx_safe_travel=0.6,
-                              position_offset=0.812,
+                              position_offset=0.735,
                               near_soft_limit_port=3,
                               far_soft_limit_port=2)
 
         # Rotor
         radians_per_motor_revolution_of_rotor = 2 * math.pi / 25  # this is the gear ratio of the worm drive
 
-        rotor = OrientedStepper(commander=the_commander,
-                                io_card=io_card,
-                                motor_address=3,
-                                name='rotor',
-                                power_relay=3,
-                                inverse_direction=True,
-                                si_unit_per_motor_revolution=radians_per_motor_revolution_of_rotor)
+        rotor = LocatedStepper(commander=the_commander,
+                               io_card=io_card,
+                               motor_address=3,
+                               name='rotor',
+                               power_relay=3,
+                               inverse_direction=True,
+                               si_unit_per_motor_revolution=radians_per_motor_revolution_of_rotor)
 
         rotor.ramp_type = "jerkfree"
         rotor.jerk = 1
 
-        pan = OrientedStepper(commander=the_commander,
+        pan = LocatedStepper(commander=the_commander,
+                             io_card=io_card,
+                             motor_address=4,
+                             name='pan',
+                             power_relay=4,
+                             inverse_direction=False,
+                             si_unit_per_motor_revolution=(2 * math.pi))
+
+        tilt = LocatedStepper(commander=the_commander,
                               io_card=io_card,
-                              motor_address=4,
-                              name='pan',
-                              power_relay=4,
+                              motor_address=5,
+                              name='tilt',
+                              power_relay=5,
                               inverse_direction=False,
                               si_unit_per_motor_revolution=(2 * math.pi))
-
-        tilt = OrientedStepper(commander=the_commander,
-                               io_card=io_card,
-                               motor_address=5,
-                               name='tilt',
-                               power_relay=5,
-                               inverse_direction=False,
-                               si_unit_per_motor_revolution=(2 * math.pi))
 
         time.sleep(2)
 
         homing_run()
+
+        tilt.goto_absolute_position(position=- 0.8 * pi / 2, speed=0.5)
+        tilt.blocking_run()
+
+        pan.goto_absolute_position(position=- pi / 2, speed=1)
+        pan.blocking_run()
+
+        #
 
         time.sleep(2)
 
