@@ -12,7 +12,6 @@ from bitstring import BitArray
 
 from nanotec import *
 from motion_control import *
-from camera_stand_math import *
 
 pi = math.pi
 
@@ -176,15 +175,21 @@ if __name__ == '__main__':
 
         homing_run()
 
-        tilt.goto_absolute_position(position=- 0.8 * pi / 2, speed=0.5)
-        tilt.blocking_run()
-
-        pan.goto_absolute_position(position=- pi / 2, speed=1)
-        pan.blocking_run()
-
-        #
+        input("Press Enter to continue...")
 
         time.sleep(2)
+
+        axes_dict = {
+            'arm': arm,
+            'lift': lift,
+            'rotor': rotor,
+            'pan': pan,
+            'tilt': tilt
+        }
+
+        motion_controller = MotionController(axes_dict)
+
+        motion_controller.run_circular_sequence(distance=0.6, radius=0.1, duration=20, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
 
         # flat_circle_run(travel=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0.5, stop_angle=2 * math.pi - 0.5)
 
