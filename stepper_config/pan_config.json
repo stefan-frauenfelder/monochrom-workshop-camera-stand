@@ -1,0 +1,15 @@
+{
+    "name": "pan",
+    "motion": "rotational",
+    "busAddress": 4,
+    "powerRelay": 4,
+    "stepsPerMotorRevolution": 200,
+    "microStepsPerStep": 8,
+    "siUnitPerMotorRevolution": 6.283,
+    "siUnit": "radian",
+    "orientation": "default",
+    "approximateSafeTravel": 5,
+    "absolutePositionOffset": 0.0,
+    "nearSoftLimitPort": null,
+    "farSoftLimitPort": null
+}

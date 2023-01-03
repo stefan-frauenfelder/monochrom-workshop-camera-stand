@@ -1,0 +1,15 @@
+{
+    "name": "rotor",
+    "motion": "rotational",
+    "busAddress": 3,
+    "powerRelay": 3,
+    "stepsPerMotorRevolution": 200,
+    "microStepsPerStep": 8,
+    "siUnitPerMotorRevolution": 0.2513,
+    "siUnit": "radian",
+    "orientation": "inverse",
+    "approximateSafeTravel": 3,
+    "absolutePositionOffset": 0.0,
+    "nearSoftLimitPort": null,
+    "farSoftLimitPort": null
+}

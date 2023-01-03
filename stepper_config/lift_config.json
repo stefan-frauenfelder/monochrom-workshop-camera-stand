@@ -1,0 +1,15 @@
+{
+    "name": "lift",
+    "motion": "linear",
+    "busAddress": 2,
+    "powerRelay": 2,
+    "stepsPerMotorRevolution": 200,
+    "microStepsPerStep": 8,
+    "siUnitPerMotorRevolution": 0.12,
+    "siUnit": "meter",
+    "orientation": "inverse",
+    "approximateSafeTravel": 0.6,
+    "absolutePositionOffset": 0.735,
+    "nearSoftLimitPort": 3,
+    "farSoftLimitPort": 2
+}

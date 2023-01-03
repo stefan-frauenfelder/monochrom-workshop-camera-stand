@@ -29,14 +29,18 @@ class Commander():
 
 
 class NanotecStepper():
-    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8):
+    def __init__(self, commander, io_card, stepper_config):
+
+        self.stepper_config = stepper_config
+
         self.commander = commander
         self._io_card = io_card
-        self._motor_address = motor_address
-        self._steps_per_motor_revolution = steps_per_motor_revolution
-        self._micro_steps_per_step = micro_steps_per_step
-        self._name = name
-        self._power_relay = power_relay
+
+        self._motor_address = self.stepper_config['busAddress']
+        self._steps_per_motor_revolution = self.stepper_config['stepsPerMotorRevolution']
+        self._micro_steps_per_step = self.stepper_config['microStepsPerStep']
+        self._name = self.stepper_config['name']
+        self._power_relay = self.stepper_config['powerRelay']
 
         self._io_card.set_output(self._power_relay, 1)
 
@@ -256,10 +260,10 @@ class NanotecStepper():
 
 class PhysicalStepper(NanotecStepper):
 
-    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, si_unit_per_motor_revolution=0.12):
-        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step)
+    def __init__(self, commander, io_card, stepper_config):
+        super().__init__(commander, io_card, stepper_config)
 
-        self._si_unit_per_motor_revolution = si_unit_per_motor_revolution
+        self._si_unit_per_motor_revolution = self.stepper_config['siUnitPerMotorRevolution']
 
     def travel(self, value):
         # convert from physical travel in meters to (micro) steps of the motor
@@ -288,12 +292,17 @@ class PhysicalStepper(NanotecStepper):
 
 class OrientedStepper(PhysicalStepper):
 
-    def __init__(self, commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution=200, micro_steps_per_step=8, si_unit_per_motor_revolution=0.12, inverse_direction=False, approx_safe_travel=0.6):
-        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, si_unit_per_motor_revolution)
+    def __init__(self, commander, io_card, stepper_config):
+        super().__init__(commander, io_card, stepper_config)
 
-        self._inverse_direction = inverse_direction
+        if self.stepper_config['orientation'] == 'inverse':
+            self._inverse_direction = True
+        else:
+            self._inverse_direction = False
+
+        self._approx_safe_travel = self.stepper_config['approximateSafeTravel']
+
         self._origin_is_set = False
-        self._approx_safe_travel = approx_safe_travel
 
     def signed_travel(self, value):
         if not self._inverse_direction:  # direction is default
@@ -455,11 +464,8 @@ class OrientedStepper(PhysicalStepper):
 
 class FiniteStepper(OrientedStepper):
 
-    def __init__(self, commander, io_card, motor_address, name, power_relay,
-                 steps_per_motor_revolution=200, micro_steps_per_step=8,
-                 si_unit_per_motor_revolution=0.12, inverse_direction=False, approx_safe_travel=0.6,
-                 near_soft_limit_port=False, far_soft_limit_port=False):
-        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, si_unit_per_motor_revolution, inverse_direction, approx_safe_travel)
+    def __init__(self, commander, io_card, stepper_config):
+        super().__init__(commander, io_card, stepper_config)
 
         self._near_soft_limit_location = False
         self._far_soft_limit_location = False
@@ -473,12 +479,15 @@ class FiniteStepper(OrientedStepper):
 
         self._is_limited = False
 
+        near_soft_limit_port = self.stepper_config['nearSoftLimitPort']
+        far_soft_limit_port = self.stepper_config['farSoftLimitPort']
+
         # register callbacks using the sequence i/o-card (connected to the soft limit switches)
-        if near_soft_limit_port is not False:
+        if near_soft_limit_port is not None:
             self._io_card.add_callback(near_soft_limit_port, 'RISING', self.near_soft_limit_enter)
             self._io_card.add_callback(near_soft_limit_port, 'FALLING', self.near_soft_limit_leave)
 
-        if far_soft_limit_port is not False:
+        if far_soft_limit_port is not None:
             self._io_card.add_callback(far_soft_limit_port, 'RISING', self.far_soft_limit_enter)
             self._io_card.add_callback(far_soft_limit_port, 'FALLING', self.far_soft_limit_leave)
 
@@ -599,14 +608,10 @@ class FiniteStepper(OrientedStepper):
 
 class LocatedStepper(FiniteStepper):
 
-    def __init__(self, commander, io_card, motor_address, name, power_relay,
-                 steps_per_motor_revolution=200, micro_steps_per_step=8,
-                 si_unit_per_motor_revolution=0.12, inverse_direction=False, approx_safe_travel=0.6,
-                 near_soft_limit_port=False, far_soft_limit_port=False,
-                 position_offset=0):
-        super().__init__(commander, io_card, motor_address, name, power_relay, steps_per_motor_revolution, micro_steps_per_step, si_unit_per_motor_revolution, inverse_direction, approx_safe_travel, near_soft_limit_port, far_soft_limit_port)
+    def __init__(self, commander, io_card, stepper_config):
+        super().__init__(commander, io_card, stepper_config)
 
-        self._position_offset = position_offset
+        self._position_offset = self.stepper_config['absolutePositionOffset']
 
     def get_absolute_position(self):
         return self.limited_position + self._position_offset

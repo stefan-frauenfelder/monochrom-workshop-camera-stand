@@ -5,6 +5,7 @@ import sys
 import math
 import RPi.GPIO as GPIO
 import threading
+import json
 
 import sequent_ports
 
@@ -109,69 +110,28 @@ if __name__ == '__main__':
 
         commander_lock = threading.Lock()
 
-        the_commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
+        commander = Commander(ser=serial_port, lock=commander_lock)  # create the commander
+
+        # create all the stepper instances using the stepper configuration files
 
         # Horizontal axis
-        arm = LocatedStepper(commander=the_commander,
-                             io_card=io_card,
-                             motor_address=1,
-                             name='arm',
-                             power_relay=1,
-                             steps_per_motor_revolution=200,
-                             micro_steps_per_step=8,
-                             si_unit_per_motor_revolution=0.12,
-                             inverse_direction=False,
-                             approx_safe_travel=0.6,
-                             position_offset=0.157,
-                             near_soft_limit_port=1,
-                             far_soft_limit_port=0)
+        arm = LocatedStepper(commander, io_card, json.loads(open("arm_config.json").read()))
 
         # Vertical axis
-        lift = LocatedStepper(commander=the_commander,
-                              io_card=io_card,
-                              motor_address=2,
-                              name='lift',
-                              power_relay=2,
-                              steps_per_motor_revolution=200,
-                              micro_steps_per_step=8,
-                              si_unit_per_motor_revolution=0.12,
-                              inverse_direction=True,
-                              approx_safe_travel=0.6,
-                              position_offset=0.735,
-                              near_soft_limit_port=3,
-                              far_soft_limit_port=2)
+        lift = LocatedStepper(commander, io_card, json.loads(open("lift_config.json").read()))
 
-        # Rotor
-        radians_per_motor_revolution_of_rotor = 2 * math.pi / 25  # this is the gear ratio of the worm drive
+        # rotation of the arm
+        rotor = LocatedStepper(commander, io_card, json.loads(open("rotor_config.json").read()))
 
-        rotor = LocatedStepper(commander=the_commander,
-                               io_card=io_card,
-                               motor_address=3,
-                               name='rotor',
-                               power_relay=3,
-                               inverse_direction=True,
-                               si_unit_per_motor_revolution=radians_per_motor_revolution_of_rotor)
+        # paning of the camera
+        pan = LocatedStepper(commander, io_card, json.loads(open("pan_config.json").read()))
 
-        rotor.ramp_type = "jerkfree"
-        rotor.jerk = 1
+        # tilting of the camera
+        tilt = LocatedStepper(commander, io_card, json.loads(open("tilt_config.json").read()))
 
-        pan = LocatedStepper(commander=the_commander,
-                             io_card=io_card,
-                             motor_address=4,
-                             name='pan',
-                             power_relay=4,
-                             inverse_direction=False,
-                             si_unit_per_motor_revolution=(2 * math.pi))
+        print('All motors powered up and initialized.')
 
-        tilt = LocatedStepper(commander=the_commander,
-                              io_card=io_card,
-                              motor_address=5,
-                              name='tilt',
-                              power_relay=5,
-                              inverse_direction=False,
-                              si_unit_per_motor_revolution=(2 * math.pi))
-
-        time.sleep(2)
+        input("Press Enter to start the homing sequence.")
 
         homing_run()
 
@@ -187,9 +147,9 @@ if __name__ == '__main__':
             'tilt': tilt
         }
 
-        motion_controller = MotionController(axes_dict)
+        # motion_controller = MotionController(axes_dict)
 
-        motion_controller.run_circular_sequence(distance=0.6, radius=0.1, duration=20, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
+        # motion_controller.run_circular_sequence(distance=0.6, radius=0.1, duration=20, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
 
         # flat_circle_run(travel=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0.5, stop_angle=2 * math.pi - 0.5)
 
