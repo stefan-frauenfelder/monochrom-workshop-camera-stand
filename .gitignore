@@ -4,3 +4,5 @@
 *.csv
 
 __pycache__/
+
+sftp-config.json
