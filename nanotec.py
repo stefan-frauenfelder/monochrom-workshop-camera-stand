@@ -44,12 +44,14 @@ class NanotecStepper():
 
         self._io_card.set_output(self._power_relay, 1)
 
-        time.sleep(2)
+        self.armed = False
+
+        time.sleep(1)
 
         self._command_letters = {
             "position_mode": b'p',
             "step_mode": b'g',
-            "travel_travel": b's',
+            "travel": b's',
             "initial_step_frequency": b'u',
             "maximum_step_frequency": b'o',
             "second_maximum_step_frequency": b'n',
@@ -80,7 +82,7 @@ class NanotecStepper():
         }
         self._ram_record = {
             "step_mode": self._micro_steps_per_step,   # number of microsteps per step
-            "travel_travel": 1,
+            "travel": 1,
             "initial_step_frequency": 1,
             "maximum_step_frequency": 1,
             "second_maximum_step_frequency": 1,
@@ -118,8 +120,9 @@ class NanotecStepper():
     step_speed = property(None, step_speed)
 
     def step_travel(self, value):
-        command = self._command_letters["travel_travel"] + (str(value).encode('UTF-8'))
+        command = self._command_letters["travel"] + (str(value).encode('UTF-8'))
         self.commander.write_command(self._motor_address, command)
+        self.armed = True
     step_travel = property(None, step_travel)
 
     def step_direction(self, value):
@@ -227,6 +230,7 @@ class NanotecStepper():
     def run(self):
         # start the motor with the current settings
         self.commander.write_command(self._motor_address, b'A')
+        self.armed = False
 
     def stop(self):
         # stop the motor with the current ramp
@@ -461,6 +465,70 @@ class OrientedStepper(PhysicalStepper):
             # must not happen
             raise ValueError('Find origin must not be called for an already referenced motor. Power cycle the motor before every new run of this software.')
 
+    def find_rotor_origin(self, limit_switch='internal', direction=Direction.negative):
+
+        if not self.is_referenced:
+
+            print('Finding origin of ' + self._name + ' axis.')
+
+            # store values to reapply later
+            previous_mode = self.mode
+
+            self.ramp_type = "jerkfree"
+            self.jerk = 3
+
+            if direction == Direction.positive:  # approaching origin from negative angles
+                sign_modifier = 1
+
+            elif direction == Direction.negative:  # approaching origin from positive angles
+                sign_modifier = -1
+
+            else:
+                raise ValueError('Direction of rotation to find origin needs to be either negative or positive.')
+
+            # assumption: rotational axis is started up in about neutral position
+
+            # backup from neutral startup position by a quarter rotation
+            self.mode = "relative_positioning"
+            self.speed = 0.05
+            self.signed_travel = sign_modifier * -math.pi / 8
+            print('Backing up...')
+            self.blocking_run()
+
+            # activate the appropriate mode
+
+            if limit_switch == 'internal':  # approaching origin from negative angles
+                self.mode = 'internal_reference_run'
+
+            elif limit_switch == 'external':  # approaching origin from positive angles
+                self.mode = 'external_reference_run'
+
+            else:
+                raise ValueError('Limit switch parameter needs to be either internal or external.')
+
+            # adjust mictrosteps to increase speed of traveling down from limit switch
+            self.micro_steps_per_step = 1
+
+            # approach origin slowly
+            self.speed = 0.02
+            self.signed_travel = sign_modifier * 2 * math.pi
+            self.run()
+            while not self.is_referenced:
+                time.sleep(0.5)
+            self.stop()  # in case the motor was already referenced and it is still running
+
+            # restore previous settings
+            self.mode = previous_mode
+            self.micro_steps_per_step = self.stepper_config['microStepsPerStep']
+
+            self._origin_is_set = True
+
+            print('Origin of ' + self._name + ' axis set. Now positioned at ' + str(self.signed_position))
+
+        else:
+            # must not happen
+            raise ValueError('Find origin must not be called for an already referenced motor. Power cycle the motor before every new run of this software.')
+
 
 class FiniteStepper(OrientedStepper):
 
@@ -574,10 +642,10 @@ class FiniteStepper(OrientedStepper):
         print('Safe travel of ' + self._name + ' axis is ' + str(self._safe_travel_range) + '.')
         print('Soft limit guard of ' + self._name + ' axis activated.')
 
-    def set_fake_rotational_stepper_limits(self):
+    def set_fake_rotational_stepper_limits(self, limit):
 
-        self._near_soft_limit_location = - math.pi
-        self._far_soft_limit_location = math.pi
+        self._near_soft_limit_location = - limit
+        self._far_soft_limit_location = limit
         self._safety_margin = math.pi / 18  # 10°
         self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
 

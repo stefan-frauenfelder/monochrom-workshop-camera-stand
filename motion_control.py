@@ -6,56 +6,121 @@ import threading
 from nanotec import *
 from motion_math import *
 
-default_linear_speed = 0.05
+default_linear_speed = 0.1
 default_rotor_speed = 0.1
-default_pan_tilt_speed = 0.3
+default_pan_tilt_speed = 0.8
 
 
 class MotionController():
 
     def __init__(self, axes_dict):
 
-        self.arm = axes_dict['arm']
-        self.lift = axes_dict['lift']
-        self.rotor = axes_dict['rotor']
-        self.pan = axes_dict['pan']
-        self.tilt = axes_dict['tilt']
+        self.axes = axes_dict
+        # better safe than sorry
+        self.disarm_all()
+
+    def disarm_all(self):
+        # iterate through axes
+        for axis in self.axes.values():
+            axis.armed = False
+
+    def parallel_run(self):
+        # create a list of threads
+        threads = []
+        # iterate through axes
+        for axis in self.axes.values():
+            # check if it was configured for a run (travel was set but run was not called)
+            if axis.armed:
+                # create a new (blocking) thread, add it to the list, and start it
+                thread = threading.Thread(target=axis.blocking_run)
+                threads.append(thread)
+                thread.start()
+        # join all threads
+        for thread in threads:
+            thread.join()
+
+    def two_simple_motions(self):
+
+        # move arm to the starting point
+        self.axes['arm'].goto_absolute_position(position=0.5, speed=default_linear_speed)
+        self.axes['arm'].blocking_run()
+
+        self.axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
+        self.axes['lift'].blocking_run()
+
+        input("Press Enter to continue...")
+
+        self.axes['arm'].goto_absolute_position(position=0.7, speed=default_linear_speed)
+        self.axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
+
+        input("Press Enter to continue...")
+
+        self.parallel_run()
+
+        input("Press Enter to continue...")
 
     def move_to_start_angle(self, distance, radius, start_angle):
 
+        # lift the pen from the paper
+        self.axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
+        self.axes['arm'].goto_absolute_position(position=0.4, speed=default_linear_speed)
+        self.parallel_run()
+
+        input("Press Enter to arm motors...")
+
         # move arm to the starting point
         arm_start_position = circular_motion_arm_position(start_angle, distance, radius)
-        self.arm.goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
-        self.arm.blocking_run()
-
-        input("Press Enter to continue...")
-
+        self.axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
         # move rotor to starting point
         rotor_starting_angle = circular_motion_rotor_angle(start_angle, distance, radius)
-        self.rotor.goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
-        self.rotor.blocking_run()
-
-        input("Press Enter to continue...")
-
+        self.axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
         # move pan to starting point
         pan_starting_angle = circular_motion_pan_angle(start_angle, distance, radius)
-        self.pan.goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
-        self.pan.blocking_run()
+        self.axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
+        # move the lift to above target height
+        self.axes['lift'].goto_absolute_position(position=0.9, speed=default_linear_speed)
+        # point the pen down
+        self.axes['tilt'].goto_absolute_position(position=-0.5, speed=default_pan_tilt_speed)
+
+        input("Press Enter to start parallel run...")
+        self.parallel_run()
+
+        # lower the pen to the paper
+        self.axes['lift'].goto_absolute_position(position=0.851, speed=default_linear_speed)
+        self.axes['lift'].blocking_run()
+
+    def back_up(self):
+
+        # lift the pen from the paper
+        self.axes['lift'].goto_absolute_position(position=0.87, speed=default_linear_speed)
+        self.axes['lift'].blocking_run()
+
+        self.axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
+        # go to neutral
+        self.axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self.axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self.axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
+        # retract the arm
+        self.axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
+
+        self.parallel_run()
 
     def circular_motion(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
+        input("Press Enter to start circular motion...")
+
         # get arm, rotor, and pan ready for circular motion using speed mode
-        self.arm.mode = "speed_mode"
-        self.arm.ramp_type = "jerkfree"
-        self.arm.jerk = 5
+        self.axes['arm'].mode = "speed_mode"
+        self.axes['arm'].ramp_type = "jerkfree"
+        self.axes['arm'].jerk = 5
 
-        self.rotor.mode = "speed_mode"
-        self.rotor.ramp_type = "jerkfree"
-        self.rotor.jerk = 5
+        self.axes['rotor'].mode = "speed_mode"
+        self.axes['rotor'].ramp_type = "jerkfree"
+        self.axes['rotor'].jerk = 5
 
-        self.pan.mode = "speed_mode"
-        self.pan.ramp_type = "jerkfree"
-        self.pan.jerk = 5
+        self.axes['pan'].mode = "speed_mode"
+        self.axes['pan'].ramp_type = "jerkfree"
+        self.axes['pan'].jerk = 5
 
         step_periode = 1.0 / step_frequency
 
@@ -72,118 +137,32 @@ class MotionController():
 
             t = time.time() - start_time
 
-            self.arm.signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
+            self.axes['arm'].signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
 
-            self.rotor.signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
+            self.axes['rotor'].signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
 
-            self.pan.signed_speed = circular_motion_pan_speed(t, k, start_angle, distance, radius)
+            self.axes['pan'].signed_speed = circular_motion_pan_speed(t, k, start_angle, distance, radius)
 
             if first_loop:
-                self.arm.run()
-                self.rotor.run()
-                self.pan.run()
+                self.axes['arm'].run()
+                self.axes['rotor'].run()
+                self.axes['pan'].run()
             first_loop = 0
 
             time.sleep(step_periode)
 
-        self.arm.stop()
-        self.rotor.stop()
-        self.pan.stop()
+        self.axes['arm'].stop()
+        self.axes['rotor'].stop()
+        self.axes['pan'].stop()
 
     def run_circular_sequence(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
         self.move_to_start_angle(distance, radius, start_angle)
 
-        input("Press Enter to continue...")
+        time.sleep(0.2)
 
         self.circular_motion(distance, radius, duration, step_frequency, start_angle, stop_angle)
 
+        time.sleep(0.2)
 
-# def flat_circle_run(distance=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0, stop_angle=2 * math.pi):
-
-#     input("Press Enter to continue...")
-
-#     # move arm to the starting point
-#     arm_start_position = circular_motion_arm_position(start_angle, distance, radius)
-#     print('Arm start position: ' + str(arm_start_position))
-#     arm.goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
-#     arm.blocking_run()
-
-#     input("Press Enter to continue...")
-
-#     # move rotor to starting point
-#     rotor_starting_angle = circular_motion_rotor_angle(start_angle, distance, radius)
-#     rotor.move(rotor_starting_angle, default_rotor_speed)
-#     rotor.blocking_run()
-
-#     input("Press Enter to continue...")
-
-#     # move the lift to above target height
-#     lift.goto_absolute_position(position=1.0, speed=default_linear_speed)
-#     lift.blocking_run()
-
-#     input("Press Enter to continue...")
-
-#     # point the pen down
-#     tilt.move(angle=-math.pi / 2, speed=6)
-#     tilt.blocking_run()
-
-#     input("Press Enter to continue...")
-
-#     # lower the pen to the paper
-#     lift.goto_absolute_position(position=0.82, speed=default_linear_speed)
-#     lift.blocking_run()
-
-#     input("Press Enter to continue...")
-
-#     # get arm and rotor ready for circular motion using speed mode
-#     arm.mode = "speed_mode"
-#     arm.ramp_type = "jerkfree"
-#     arm.jerk = 5
-
-#     rotor.mode = "speed_mode"
-#     rotor.ramp_type = "jerkfree"
-#     rotor.jerk = 5
-
-#     step_periode = 1.0 / step_frequency
-
-#     start_time = time.time()
-
-#     first_loop = 1
-#     t = 0
-
-#     k = (stop_angle - start_angle) / duration
-
-#     while t < duration:
-
-#         # alpha = k * t
-
-#         t = time.time() - start_time
-
-#         rotor.signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
-
-#         arm.signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
-
-#         if first_loop:
-#             arm.run()
-#             rotor.run()
-#         first_loop = 0
-
-#         time.sleep(step_periode)
-
-#     arm.stop()
-#     rotor.stop()
-
-#     time.sleep(1)
-
-#     input("Press Enter to continue...")
-
-#     # lift the pen from the paper
-#     lift.goto_absolute_position(position=1.0, speed=default_linear_speed)
-#     lift.blocking_run()
-
-#     input("Press Enter to continue...")
-
-#     # raise the pen straight
-#     tilt.move(angle=math.pi / 2, speed=6)
-#     tilt.blocking_run()
+        self.back_up()

@@ -58,16 +58,20 @@ def init():
 
 def homing_run():
 
+    def find_rotor_origin():
+        rotor.find_rotor_origin(limit_switch='external', direction=Direction.negative)
+
     find_limits_arm_thread = threading.Thread(target=arm.find_linear_stepper_limits)
     find_limits_lift_thread = threading.Thread(target=lift.find_linear_stepper_limits)
+    find_limits_rotor_thread = threading.Thread(target=find_rotor_origin)
 
     find_limits_arm_thread.start()
     find_limits_lift_thread.start()
+    find_limits_rotor_thread.start()
 
     find_limits_arm_thread.join()
     find_limits_lift_thread.join()
-
-    # rotor.find_origin(limit_switch='external', direction=Direction.negative)
+    find_limits_rotor_thread.join()
 
     def find_pan_origin():
         pan.find_rotational_stepper_origin(limit_switch='internal', direction=Direction.negative)
@@ -84,8 +88,9 @@ def homing_run():
     find_origin_pan_thread.join()
     find_origin_tilt_thread.join()
 
-    pan.set_fake_rotational_stepper_limits()
-    tilt.set_fake_rotational_stepper_limits()
+    pan.set_fake_rotational_stepper_limits(math.pi)
+    tilt.set_fake_rotational_stepper_limits(math.pi)
+    rotor.set_fake_rotational_stepper_limits(math.pi / 4)
 
 
 if __name__ == '__main__':
@@ -147,13 +152,9 @@ if __name__ == '__main__':
             'tilt': tilt
         }
 
-        # motion_controller = MotionController(axes_dict)
+        motion_controller = MotionController(axes_dict)
 
-        # motion_controller.run_circular_sequence(distance=0.6, radius=0.1, duration=20, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
-
-        # flat_circle_run(travel=0.8, radius=0.1, duration=20, step_frequency=10, start_angle=0.5, stop_angle=2 * math.pi - 0.5)
-
-        time.sleep(2)
+        motion_controller.run_circular_sequence(distance=0.6, radius=0.4, duration=60, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
 
     except KeyboardInterrupt:
         # here you put any code you want to run before the program
