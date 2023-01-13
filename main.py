@@ -93,6 +93,25 @@ def homing_run():
     rotor.set_fake_rotational_stepper_limits(math.pi / 4)
 
 
+def activate_joystick_mode(axes_dict):
+
+    arm.speed = 0.05
+    lift.speed = 0.05
+    rotor.speed = 0.1
+    pan.speed = 0.1
+    tilt.speed = 0.1
+
+    for axis in axes_dict.values():
+        axis.mode = 'joystick_mode'
+        axis.run()
+
+    input("Press Enter to stop and continue.")
+
+    for axis in axes_dict.values():
+        axis.stop()
+        axis.mode = 'relative_positioning'
+
+
 if __name__ == '__main__':
 
     init()
@@ -136,12 +155,6 @@ if __name__ == '__main__':
 
         print('All motors powered up and initialized.')
 
-        input("Press Enter to start the homing sequence.")
-
-        homing_run()
-
-        input("Press Enter to continue...")
-
         time.sleep(2)
 
         axes_dict = {
@@ -152,9 +165,17 @@ if __name__ == '__main__':
             'tilt': tilt
         }
 
+        input("Press Enter to activate joystick mode...")
+
+        activate_joystick_mode(axes_dict)
+
+        input("Press Enter to start the homing sequence.")
+
+        homing_run()
+
         motion_controller = MotionController(axes_dict)
 
-        motion_controller.run_circular_sequence(distance=0.6, radius=0.4, duration=60, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
+        motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
 
     except KeyboardInterrupt:
         # here you put any code you want to run before the program
@@ -172,7 +193,7 @@ if __name__ == '__main__':
         # power down all motors
         for i in range(1, 6):
             io_card.set_output(i, 0)
-            time.sleep(0.2)
+            time.sleep(0.1)
         print('Motors powered down.')
 
         GPIO.cleanup()  # this ensures a clean exit

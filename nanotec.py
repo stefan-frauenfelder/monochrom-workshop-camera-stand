@@ -28,6 +28,11 @@ class Commander():
             return answer
 
 
+class SoftLimitViolationException(Exception):
+    "Raised when a stepper moves outside its safe travel zone"
+    pass
+
+
 class NanotecStepper():
     def __init__(self, commander, io_card, stepper_config):
 
@@ -581,6 +586,7 @@ class FiniteStepper(OrientedStepper):
         if self._is_limited:
             self.immediate_stop()
             print('WARNING: ' + self._name + ' axis stopped due to soft limit violation.')
+            raise SoftLimitViolationException
 
     def find_linear_stepper_limits(self):
         if not self.is_referenced:

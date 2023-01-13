@@ -24,6 +24,12 @@ class MotionController():
         for axis in self.axes.values():
             axis.armed = False
 
+    def emergency_stop(self):
+        # iterate through axes
+        for axis in self.axes.values():
+            # emmediately stop axis
+            axis.immediate_stop()
+
     def parallel_run(self):
         # create a list of threads
         threads = []
@@ -126,34 +132,45 @@ class MotionController():
 
         start_time = time.time()
 
-        first_loop = 1
+        loop_count = 0
         t = 0
 
         k = (stop_angle - start_angle) / duration
 
-        while t < duration:
+        try:
+            while t < duration:
 
-            # alpha = k * t
+                # alpha = k * t
 
-            t = time.time() - start_time
+                t = time.time() - start_time
 
-            self.axes['arm'].signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
+                self.axes['arm'].signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
 
-            self.axes['rotor'].signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
+                self.axes['rotor'].signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
 
-            self.axes['pan'].signed_speed = circular_motion_pan_speed(t, k, start_angle, distance, radius)
+                self.axes['pan'].signed_speed = circular_motion_pan_speed(t, k, start_angle, distance, radius)
 
-            if first_loop:
-                self.axes['arm'].run()
-                self.axes['rotor'].run()
-                self.axes['pan'].run()
-            first_loop = 0
+                if loop_count == 0:
+                    self.axes['arm'].run()
+                    self.axes['rotor'].run()
+                    self.axes['pan'].run()
 
-            time.sleep(step_periode)
+                loop_count += 1
 
-        self.axes['arm'].stop()
-        self.axes['rotor'].stop()
-        self.axes['pan'].stop()
+                time.sleep(step_periode)
+
+        except SoftLimitViolationException:
+            print('Warning: Aborting movement due to soft limit violation.')
+            self.emergency_stop()
+
+        else:  # everything went smoothly
+            self.axes['arm'].stop()
+            self.axes['rotor'].stop()
+            self.axes['pan'].stop()
+
+            sleep_time = loop_count * step_periode
+
+            print('Sleep time was ' + str(sleep_time))
 
     def run_circular_sequence(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
