@@ -108,7 +108,17 @@ class MotionController():
         self.axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
         # retract the arm
         self.axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
+        # execute
+        self.parallel_run()
 
+    def go_neutral(self):
+        # go to neutral
+        self.axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self.axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self.axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
+        # retract the arm
+        self.axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
+        # execute
         self.parallel_run()
 
     def circular_motion(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
@@ -157,7 +167,7 @@ class MotionController():
 
                 loop_count += 1
 
-                time.sleep(step_periode)
+                # time.sleep(step_periode)
 
         except SoftLimitViolationException:
             print('Warning: Aborting movement due to soft limit violation.')
@@ -172,6 +182,82 @@ class MotionController():
 
             print('Sleep time was ' + str(sleep_time))
 
+    def front_linear_motion(self, distance, duration, step_frequency, start_s, stop_s):
+
+        input("Press Enter to start linear motion...")
+
+        # get arm, rotor, and pan ready for circular motion using speed mode
+        self.axes['arm'].mode = "speed_mode"
+        self.axes['arm'].ramp_type = "jerkfree"
+        self.axes['arm'].jerk = 5
+
+        self.axes['rotor'].mode = "speed_mode"
+        self.axes['rotor'].ramp_type = "jerkfree"
+        self.axes['rotor'].jerk = 5
+
+        self.axes['pan'].mode = "speed_mode"
+        self.axes['pan'].ramp_type = "jerkfree"
+        self.axes['pan'].jerk = 5
+
+        step_periode = 1.0 / step_frequency
+
+        start_time = time.time()
+
+        loop_count = 0
+        t = 0
+
+        k = (stop_s - start_s) / duration
+
+        try:
+            while t < duration:
+
+                # alpha = k * t
+
+                t = time.time() - start_time
+
+                self.axes['arm'].signed_speed = front_linear_motion_arm_speed(t, k, start_s, distance)
+
+                self.axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+
+                self.axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+
+                if loop_count == 0:
+                    self.axes['arm'].run()
+                    self.axes['rotor'].run()
+                    self.axes['pan'].run()
+
+                loop_count += 1
+
+                # time.sleep(step_periode)
+
+        except SoftLimitViolationException:
+            print('Warning: Aborting movement due to soft limit violation.')
+            self.emergency_stop()
+
+        else:  # everything went smoothly
+            self.axes['arm'].stop()
+            self.axes['rotor'] .stop()
+            self.axes['pan'].stop()
+
+            sleep_time = loop_count * step_periode
+
+            print('Loop count was ' + str(loop_count))
+
+    def move_to_front_linear_start_position(self, distance, start_s):
+        # move arm to the starting point
+        arm_start_position = front_linear_motion_arm_position(start_s, distance)
+        self.axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
+        # move rotor to starting point
+        rotor_starting_angle = front_linear_motion_rotor_pan_angle(start_s, distance)
+        self.axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
+        # move pan to starting point
+        pan_starting_angle = - rotor_starting_angle
+        self.axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
+        # execute
+        self.parallel_run()
+
+    # Sequences
+
     def run_circular_sequence(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
         self.move_to_start_angle(distance, radius, start_angle)
@@ -183,3 +269,11 @@ class MotionController():
         time.sleep(0.2)
 
         self.back_up()
+
+    def run_front_linear_sequence(self, distance, duration, step_frequency, start_s, stop_s):
+
+        self.move_to_front_linear_start_position(distance, start_s)
+        time.sleep(0.2)
+        self.front_linear_motion(distance, duration, step_frequency, start_s, stop_s)
+        time.sleep(0.2)
+        self.go_neutral()

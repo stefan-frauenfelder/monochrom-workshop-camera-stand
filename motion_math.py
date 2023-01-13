@@ -48,3 +48,31 @@ def circular_motion_pan_speed(t, k, a_0, distance, radius):
     denominator = 2 * distance * radius * math.cos(k * t + a_0) + pow(distance, 2) + pow(radius, 2)
 
     return nominator / denominator
+
+
+def front_linear_motion_arm_position(s, distance):
+
+    return math.sqrt(pow(distance, 2) + pow(s, 2))
+
+
+def front_linear_motion_arm_speed(t, k, s_0, distance):
+
+    nominator = k * (k * t + s_0)
+
+    denominator = math.sqrt(pow(distance, 2) + pow((k * t + s_0), 2))
+
+    return nominator / denominator
+
+
+def front_linear_motion_rotor_pan_angle(s, distance):
+
+    return math.atan(s / distance)
+
+
+def front_linear_motion_rotor_pan_speed(t, k, s_0, distance):
+
+    nominator = distance * k
+
+    denominator = pow(distance, 2) + pow((k * t + s_0), 2)
+
+    return nominator / denominator

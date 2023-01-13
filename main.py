@@ -175,7 +175,9 @@ if __name__ == '__main__':
 
         motion_controller = MotionController(axes_dict)
 
-        motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
+        motion_controller.run_front_linear_sequence(distance=0.6, duration=30, step_frequency=10, start_s=0.3, stop_s=-0.3)
+
+        # motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
 
     except KeyboardInterrupt:
         # here you put any code you want to run before the program
