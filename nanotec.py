@@ -273,6 +273,7 @@ class PhysicalStepper(NanotecStepper):
         super().__init__(commander, io_card, stepper_config)
 
         self._si_unit_per_motor_revolution = self.stepper_config['siUnitPerMotorRevolution']
+        self._maximum_speed = self.stepper_config['maximumSpeed']
 
     def travel(self, value):
         # convert from physical travel in meters to (micro) steps of the motor
@@ -290,6 +291,10 @@ class PhysicalStepper(NanotecStepper):
     direction = property(None, direction)
 
     def speed(self, value):
+        if value > self._maximum_speed:
+            # limit the speed according to config
+            value = min(value, self._maximum_speed)
+            print('WARNING: Limiting speed of ' + self._name + ' axis!')
         # convert from absolute (always positive) physical speed in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._si_unit_per_motor_revolution)
     speed = property(None, speed)
@@ -678,6 +683,14 @@ class FiniteStepper(OrientedStepper):
             raise ValueError('Okay, something is fucked up here.')
 
     limited_position = property(get_limited_position, set_limited_position)
+
+    def get_near_limit(self):
+        return self._near_soft_limit_location + self._safety_margin
+    near_limit = property(get_near_limit, None)
+
+    def get_far_limit(self):
+        return self._far_soft_limit_location - self._safety_margin
+    far_limit = property(get_far_limit, None)
 
 
 class LocatedStepper(FiniteStepper):

@@ -7,6 +7,7 @@
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 6.283,
     "siUnit": "radian",
+    "maximumSpeed": 3.0,
     "orientation": "default",
     "approximateSafeTravel": 5,
     "absolutePositionOffset": 0.0,

@@ -5,6 +5,7 @@ import threading
 
 from nanotec import *
 from motion_math import *
+from rotary import Rotary
 
 default_linear_speed = 0.1
 default_rotor_speed = 0.1
@@ -277,3 +278,40 @@ class MotionController():
         self.front_linear_motion(distance, duration, step_frequency, start_s, stop_s)
         time.sleep(0.2)
         self.go_neutral()
+
+    def jog_mode(self, axis_name, wheel):
+
+        current_position = self.axes[axis_name].absolute_position
+
+        near_limit = self.axes[axis_name].near_limit
+        far_limit = self.axes[axis_name].far_limit
+
+        wheel.counter = int(1000 * current_position)
+        wheel.min = int(1000 * near_limit)
+        wheel.max = int(1000 * far_limit)
+
+        self.axes[axis_name].mode = "speed_mode"
+        self.axes[axis_name].ramp_type = "jerkfree"
+        self.axes[axis_name].jerk = 20
+
+        position_reached = True
+
+        while 1:
+
+            distance = round(float(wheel.counter) / 1000, 3) - round(self.axes[axis_name].absolute_position, 3)
+
+            if not (distance == 0):
+
+                self.axes[axis_name].signed_speed = distance
+
+                if position_reached:  # was reached before, now new need for motion
+                    self.axes[axis_name].run()
+
+                position_reached = False
+
+            else:
+                if not position_reached:
+                    self.axes[axis_name].stop()
+                    position_reached = True
+
+                time.sleep(0.5)

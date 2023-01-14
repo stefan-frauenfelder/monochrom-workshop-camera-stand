@@ -7,6 +7,7 @@
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 0.12,
     "siUnit": "meter",
+    "maximumSpeed": 0.3,
     "orientation": "default",
     "approximateSafeTravel": 0.6,
     "absolutePositionOffset": 0.157,

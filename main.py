@@ -3,19 +3,16 @@ import serial
 import time
 import sys
 import math
-import RPi.GPIO as GPIO
 import threading
 import json
 import pigpio
 
 import sequent_ports
 
-from bitstring import BitArray
-
 from nanotec import *
 from motion_control import *
 
-from pigpio_encoder.rotary import Rotary
+from rotary import Rotary
 
 pi = math.pi
 
@@ -26,17 +23,6 @@ gpio = pigpio.pi()
 
 def rotary_callback(counter):
     print("Counter value: ", counter)
-
-
-my_rotary = Rotary(clk_gpio=23, dt_gpio=24, sw_gpio=17)
-
-my_rotary.setup_rotary(
-    min=0,
-    max=2000,
-    scale=1,
-    debounce=0,
-    rotary_callback=rotary_callback
-)
 
 
 def init():
@@ -145,6 +131,16 @@ if __name__ == '__main__':
 
     counter = 10
 
+    wheel = Rotary(clk_gpio=23, dt_gpio=24, sw_gpio=17)
+
+    wheel.setup_rotary(
+        min=0,
+        max=1000,
+        scale=1,
+        debounce=0,
+        rotary_callback=rotary_callback
+    )
+
     io_card = sequent_ports.SequentPorts(SEQUENT_INTN_GPIO)
 
     try:
@@ -202,7 +198,9 @@ if __name__ == '__main__':
 
         motion_controller = MotionController(axes_dict)
 
-        motion_controller.run_front_linear_sequence(distance=0.6, duration=30, step_frequency=10, start_s=0.3, stop_s=-0.3)
+        motion_controller.jog_mode(axis_name='arm', wheel=wheel)
+
+        # motion_controller.run_front_linear_sequence(distance=0.6, duration=30, step_frequency=10, start_s=0.3, stop_s=-0.3)
 
         # motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
 
