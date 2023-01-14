@@ -1,6 +1,6 @@
 import smbus
 import time
-import RPi.GPIO as GPIO
+import pigpio
 from bitstring import BitArray
 
 # bus = smbus.SMBus(1)    # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
@@ -28,6 +28,8 @@ class SequentPorts():
 
         self._sm_bus = smbus.SMBus(1)     # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
         time.sleep(1)             # sm_bus needs to settle
+
+        gpio = pigpio.pi()
 
         self._rising_edge_callbacks = []
         self._falling_edge_callbacks = []
@@ -57,10 +59,14 @@ class SequentPorts():
         self._current_input_values = self.read_inputs()
 
         # listen to the interrupt line of the inputs card
-        GPIO.setup(interrupt_gpio_channel, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.add_event_detect(interrupt_gpio_channel, GPIO.FALLING, callback=self.interrupt)
+        # .setup(interrupt_gpio_channel, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        # GPIO.add_event_detect(interrupt_gpio_channel, GPIO.FALLING, callback=self.interrupt)
 
-    def interrupt(self, channel):
+        gpio.set_mode(interrupt_gpio_channel, pigpio.INPUT)
+        gpio.set_pull_up_down(interrupt_gpio_channel, pigpio.PUD_UP)
+        gpio.callback(interrupt_gpio_channel, pigpio.FALLING_EDGE, self.interrupt)
+
+    def interrupt(self, channel, level, tick):
         # read and clear the interrupt
         new_input_values = self.read_inputs()
 

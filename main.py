@@ -6,6 +6,7 @@ import math
 import RPi.GPIO as GPIO
 import threading
 import json
+import pigpio
 
 import sequent_ports
 
@@ -14,13 +15,34 @@ from bitstring import BitArray
 from nanotec import *
 from motion_control import *
 
+from pigpio_encoder.rotary import Rotary
+
 pi = math.pi
+
+gpio = pigpio.pi()
+
+# New rotary encoder stuff
+
+
+def rotary_callback(counter):
+    print("Counter value: ", counter)
+
+
+my_rotary = Rotary(clk_gpio=23, dt_gpio=24, sw_gpio=17)
+
+my_rotary.setup_rotary(
+    min=0,
+    max=2000,
+    scale=1,
+    debounce=0,
+    rotary_callback=rotary_callback
+)
 
 
 def init():
 
-    GPIO.setwarnings(True)
-    GPIO.setmode(GPIO.BCM)
+    # GPIO.setwarnings(True)
+    # GPIO.setmode(GPIO.BCM)
 
     # # Rotary encoder inputs
     # GPIO.setup(Enc_A, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -33,7 +55,6 @@ def init():
 
 # def rotation_decode(Enc_A):
 #     global counter
-#     # time.sleep(0.002)
 #     Switch_A = GPIO.input(Enc_A)
 #     Switch_B = GPIO.input(Enc_B)
 
@@ -114,9 +135,15 @@ def activate_joystick_mode(axes_dict):
 
 if __name__ == '__main__':
 
+    SEQUENT_INTN_GPIO = 5
+
+    # Rotary encoder inputs
+    # Enc_A = 23
+    # Enc_B = 24
+
     init()
 
-    SEQUENT_INTN_GPIO = 5
+    counter = 10
 
     io_card = sequent_ports.SequentPorts(SEQUENT_INTN_GPIO)
 
@@ -198,7 +225,7 @@ if __name__ == '__main__':
             time.sleep(0.1)
         print('Motors powered down.')
 
-        GPIO.cleanup()  # this ensures a clean exit
+        # GPIO.cleanup()  # this ensures a clean exit
         print('IO ports cleaned up.')
 
 # end of main
