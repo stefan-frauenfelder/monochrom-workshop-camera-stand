@@ -11,6 +11,7 @@ import sequent_ports
 
 from nanotec import *
 from motion_control import *
+from view import *
 
 from rotary import Rotary
 
@@ -147,6 +148,14 @@ if __name__ == '__main__':
 
         print(sys.executable)
         print(sys.version)
+
+        app = QtWidgets.QApplication(sys.argv)
+        view = View()
+        view.showMaximized()
+        app.exec_()
+
+        while True:
+            time.sleep(1)
 
         serial_port = serial.Serial(port='/dev/ttyUSB0',
                                     baudrate=115200,
