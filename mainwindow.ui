@@ -27,7 +27,7 @@
        <attribute name="title">
         <string>Home</string>
        </attribute>
-       <widget class="QPushButton" name="homing_button">
+       <widget class="QPushButton" name="initialize_button">
         <property name="geometry">
          <rect>
           <x>80</x>
@@ -37,7 +37,23 @@
          </rect>
         </property>
         <property name="text">
-         <string>Homing</string>
+         <string>Initialize Steppers</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="homing_button">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="geometry">
+         <rect>
+          <x>80</x>
+          <y>110</y>
+          <width>201</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Run homing sequence</string>
         </property>
        </widget>
       </widget>

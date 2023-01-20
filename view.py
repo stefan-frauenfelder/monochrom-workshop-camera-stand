@@ -16,12 +16,15 @@ class View(QtWidgets.QMainWindow):
 
         self.setWindowTitle("Camera Motion Control")
 
-        self.homing_button.clicked.connect(self.homing_button_clicked)
+        self.initialize_button.clicked.connect(self.homing_button_clicked)
+
+        self.homing_button.clicked.connect(self.controller.homing_run)
 
         # self.actionClose.triggered.connect(self.closing_app)
 
     def homing_button_clicked(self):
         self.controller.create_stepper_instances()
+        self.homing_button.setEnabled(True)
 
     def closeEvent(self, event):
         print("Exiting...")
