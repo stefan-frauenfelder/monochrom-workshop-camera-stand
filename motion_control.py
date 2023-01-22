@@ -279,7 +279,7 @@ class MotionController():
         time.sleep(0.2)
         self.go_neutral()
 
-    def jog_mode(self, axis_name, wheel):
+    def start_jog_mode(self, axis_name, wheel):
 
         current_position = self.axes[axis_name].absolute_position
 
@@ -294,24 +294,24 @@ class MotionController():
         self.axes[axis_name].ramp_type = "jerkfree"
         self.axes[axis_name].jerk = 20
 
-        position_reached = True
+    def run_jog_mode(self, axis_name, wheel, position_reached):
 
-        while 1:
+        distance = round(float(wheel.counter) / 1000, 3) - round(self.axes[axis_name].absolute_position, 3)
 
-            distance = round(float(wheel.counter) / 1000, 3) - round(self.axes[axis_name].absolute_position, 3)
+        if not (distance == 0):
 
-            if not (distance == 0):
+            self.axes[axis_name].signed_speed = distance
 
-                self.axes[axis_name].signed_speed = distance
+            if position_reached:  # was reached before, now new need for motion
+                self.axes[axis_name].run()
 
-                if position_reached:  # was reached before, now new need for motion
-                    self.axes[axis_name].run()
+            position_reached = False
 
-                position_reached = False
+        else:
+            if not position_reached:
+                self.axes[axis_name].stop()
+                position_reached = True
 
-            else:
-                if not position_reached:
-                    self.axes[axis_name].stop()
-                    position_reached = True
+            time.sleep(0.5)
 
-                time.sleep(0.5)
+        return position_reached

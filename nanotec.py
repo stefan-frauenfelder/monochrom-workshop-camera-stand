@@ -34,6 +34,61 @@ class SoftLimitViolationException(Exception):
 
 
 class NanotecStepper():
+
+    _command_letters = {
+        "position_mode": b'p',
+        "step_mode": b'g',
+        "travel": b's',
+        "initial_step_frequency": b'u',
+        "maximum_step_frequency": b'o',
+        "second_maximum_step_frequency": b'n',
+        "acceleration_ramp": b'b',
+        "break_ramp": b'B',
+        "direction_of_rotation": b'd',
+        "reversal_of_direction_of_rotation_for_repeat_records": b't',
+        "repetitions": b'W',
+        "pause": b'P',
+        "record_number_of_continuation_record": b'N',
+        "maximum_jerk_for_acceleration_ramp": b':b',
+        "maximum_jerk_for_break_ramp": b':B',
+        "ramp_type": b':ramp_mode',
+        "joystick_dead_range": b'=',
+        "joystick_filter": b'f',
+        "limit_switch_behavior": b'l',
+        "input_1": b':port_in_a',
+        "input_2": b':port_in_b',
+        "input_3": b':port_in_c',
+        "input_4": b':port_in_d',
+        "input_5": b':port_in_e',
+        "input_6": b':port_in_f',
+        "step_position": b'C',
+        "is_referenced": b':is_referenced',
+        "status": b'$',
+        "reset_error": b'D',
+        "factory_reset": b'~'
+    }
+
+    _defaults = {
+        "travel": 1,
+        "initial_step_frequency": 1,
+        "maximum_step_frequency": 1,
+        "second_maximum_step_frequency": 1,
+        "acceleration_ramp": 10000,  # irrelevantly high, maximum jerk is limiting factor instead
+        "break_ramp": 10000,         # irrelevantly high, maximum jerk is limiting factor instead
+        "direction_of_rotation": 0,
+        "reversal_of_direction_of_rotation_for_repeat_records": 0,
+        "repetitions": 1,
+        "pause": 0,
+        "record_number_of_continuation_record": 0,
+        "maximum_jerk_for_acceleration_ramp": 1,
+        "maximum_jerk_for_break_ramp": 1,
+        "joystick_dead_range": 5,
+        "joystick_filter": 16,
+        "limit_switch_behavior": 17442,  # default   alternative: 9250,  # default + ext.lim = stop
+        "input_1": 7,  # external reference switch
+        "input_2": 7   # external reference switch
+    }
+
     def __init__(self, commander, io_card, stepper_config):
 
         self.stepper_config = stepper_config
@@ -44,77 +99,27 @@ class NanotecStepper():
         self._motor_address = self.stepper_config['busAddress']
         self._steps_per_motor_revolution = self.stepper_config['stepsPerMotorRevolution']
         self._micro_steps_per_step = self.stepper_config['microStepsPerStep']
-        self._name = self.stepper_config['name']
+        self.name = self.stepper_config['name']
         self._power_relay = self.stepper_config['powerRelay']
-
-        self._io_card.set_output(self._power_relay, 1)
-
         self.armed = False
 
-        time.sleep(1)
+    def initialize(self):
 
-        self._command_letters = {
-            "position_mode": b'p',
-            "step_mode": b'g',
-            "travel": b's',
-            "initial_step_frequency": b'u',
-            "maximum_step_frequency": b'o',
-            "second_maximum_step_frequency": b'n',
-            "acceleration_ramp": b'b',
-            "break_ramp": b'B',
-            "direction_of_rotation": b'd',
-            "reversal_of_direction_of_rotation_for_repeat_records": b't',
-            "repetitions": b'W',
-            "pause": b'P',
-            "record_number_of_continuation_record": b'N',
-            "maximum_jerk_for_acceleration_ramp": b':b',
-            "maximum_jerk_for_break_ramp": b':B',
-            "ramp_type": b':ramp_mode',
-            "joystick_dead_range": b'=',
-            "joystick_filter": b'f',
-            "limit_switch_behavior": b'l',
-            "input_1": b':port_in_a',
-            "input_2": b':port_in_b',
-            "input_3": b':port_in_c',
-            "input_4": b':port_in_d',
-            "input_5": b':port_in_e',
-            "input_6": b':port_in_f',
-            "step_position": b'C',
-            "is_referenced": b':is_referenced',
-            "status": b'$',
-            "reset_error": b'D',
-            "factory_reset": b'~'
-        }
-        self._ram_record = {
-            "step_mode": self._micro_steps_per_step,   # number of microsteps per step
-            "travel": 1,
-            "initial_step_frequency": 1,
-            "maximum_step_frequency": 1,
-            "second_maximum_step_frequency": 1,
-            "acceleration_ramp": 10000,  # irrelevantly high, maximum jerk is limiting factor instead
-            "break_ramp": 10000,         # irrelevantly high, maximum jerk is limiting factor instead
-            "direction_of_rotation": 0,
-            "reversal_of_direction_of_rotation_for_repeat_records": 0,
-            "repetitions": 1,
-            "pause": 0,
-            "record_number_of_continuation_record": 0,
-            "maximum_jerk_for_acceleration_ramp": 1,
-            "maximum_jerk_for_break_ramp": 1,
-            "joystick_dead_range": 5,
-            "joystick_filter": 16,
-            "limit_switch_behavior": 17442,  # default   alternative: 9250,  # default + ext.lim = stop
-            "input_1": 7,  # external reference switch
-            "input_2": 7   # external reference switch
-
-        }
-
-        for key in self._ram_record:
-            command = self._command_letters[key] + (str(self._ram_record[key]).encode('UTF-8'))
+        for key in self._defaults:
+            command = self._command_letters[key] + (str(self._defaults[key]).encode('UTF-8'))
             self.commander.write_command(self._motor_address, command)
-            # print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._ram_record[key]))
+            # print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._defaults[key]))
 
+        self.micro_steps_per_step = self._micro_steps_per_step
         self.mode = "relative_positioning"
         self.ramp_type = "jerkfree"
+
+    def power_up(self):
+        self._io_card.set_output(self._power_relay, 1)
+
+    def shutdown(self):
+        print('Powering down ' + self.name + ' axis.')
+        self._io_card.set_output(self._power_relay, 0)
 
     def step_speed(self, value):
         if value < 1:
@@ -294,7 +299,7 @@ class PhysicalStepper(NanotecStepper):
         if value > self._maximum_speed:
             # limit the speed according to config
             value = min(value, self._maximum_speed)
-            print('WARNING: Limiting speed of ' + self._name + ' axis!')
+            print('WARNING: Limiting speed of ' + self.name + ' axis!')
         # convert from absolute (always positive) physical speed in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._si_unit_per_motor_revolution)
     speed = property(None, speed)
@@ -317,6 +322,10 @@ class OrientedStepper(PhysicalStepper):
         self._approx_safe_travel = self.stepper_config['approximateSafeTravel']
 
         self._origin_is_set = False
+
+    def shutdown(self):
+        self._origin_is_set = False
+        super().shutdown()
 
     def signed_travel(self, value):
         if not self._inverse_direction:  # direction is default
@@ -379,7 +388,7 @@ class OrientedStepper(PhysicalStepper):
 
         if not self.is_referenced:
 
-            print('Finding origin of ' + self._name + ' axis.')
+            print('Finding origin of ' + self.name + ' axis.')
 
             # store values to reapply later
             previous_mode = self.mode
@@ -409,7 +418,7 @@ class OrientedStepper(PhysicalStepper):
 
             self._origin_is_set = True
 
-            print('Origin of ' + self._name + ' axis set. Now positioned at ' + str(self.signed_position))
+            print('Origin of ' + self.name + ' axis set. Now positioned at ' + str(self.signed_position))
 
         else:
             # must not happen
@@ -419,7 +428,7 @@ class OrientedStepper(PhysicalStepper):
 
         if not self.is_referenced:
 
-            print('Finding origin of ' + self._name + ' axis.')
+            print('Finding origin of ' + self.name + ' axis.')
 
             # store values to reapply later
             previous_mode = self.mode
@@ -469,7 +478,7 @@ class OrientedStepper(PhysicalStepper):
 
             self._origin_is_set = True
 
-            print('Origin of ' + self._name + ' axis set. Now positioned at ' + str(self.signed_position))
+            print('Origin of ' + self.name + ' axis set. Now positioned at ' + str(self.signed_position))
 
         else:
             # must not happen
@@ -479,7 +488,7 @@ class OrientedStepper(PhysicalStepper):
 
         if not self.is_referenced:
 
-            print('Finding origin of ' + self._name + ' axis.')
+            print('Finding origin of ' + self.name + ' axis.')
 
             # store values to reapply later
             previous_mode = self.mode
@@ -533,7 +542,7 @@ class OrientedStepper(PhysicalStepper):
 
             self._origin_is_set = True
 
-            print('Origin of ' + self._name + ' axis set. Now positioned at ' + str(self.signed_position))
+            print('Origin of ' + self.name + ' axis set. Now positioned at ' + str(self.signed_position))
 
         else:
             # must not happen
@@ -569,28 +578,32 @@ class FiniteStepper(OrientedStepper):
             self._io_card.add_callback(far_soft_limit_port, 'RISING', self.far_soft_limit_enter)
             self._io_card.add_callback(far_soft_limit_port, 'FALLING', self.far_soft_limit_leave)
 
+    def shutdown(self):
+        self._is_limited = False
+        super().shutdown()
+
     def near_soft_limit_enter(self):
-        print('Entering near soft limit of ' + self._name + ' axis.')
+        print('Entering near soft limit of ' + self.name + ' axis.')
         self._is_off_near_soft_limit = True
         self.off_limits()
 
     def near_soft_limit_leave(self):
-        print('Leaving near soft limit of ' + self._name + ' axis.')
+        print('Leaving near soft limit of ' + self.name + ' axis.')
         self._is_off_near_soft_limit = False
 
     def far_soft_limit_enter(self):
-        print('Entering far soft limit of ' + self._name + ' axis.')
+        print('Entering far soft limit of ' + self.name + ' axis.')
         self._is_off_far_soft_limit = True
         self.off_limits()
 
     def far_soft_limit_leave(self):
-        print('Leaving far soft limit of ' + self._name + ' axis.')
+        print('Leaving far soft limit of ' + self.name + ' axis.')
         self._is_off_far_soft_limit = False
 
     def off_limits(self):
         if self._is_limited:
             self.immediate_stop()
-            print('WARNING: ' + self._name + ' axis stopped due to soft limit violation.')
+            print('WARNING: ' + self.name + ' axis stopped due to soft limit violation.')
             raise SoftLimitViolationException
 
     def find_linear_stepper_limits(self):
@@ -614,7 +627,7 @@ class FiniteStepper(OrientedStepper):
         # set the near limit
         current_position = self.signed_position
         self._near_soft_limit_location = current_position
-        print('Set near soft limit location of ' + self._name + ' axis to ' + str(current_position) + '.')
+        print('Set near soft limit location of ' + self.name + ' axis to ' + str(current_position) + '.')
 
         # move to near far limit
         self.move(travel=self._approx_safe_travel, speed=0.2)
@@ -640,7 +653,7 @@ class FiniteStepper(OrientedStepper):
         # set the far limit
         current_position = self.signed_position
         self._far_soft_limit_location = current_position
-        print('Set far soft limit location of ' + self._name + ' axis to ' + str(current_position) + '.')
+        print('Set far soft limit location of ' + self.name + ' axis to ' + str(current_position) + '.')
 
         self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
 
@@ -650,8 +663,8 @@ class FiniteStepper(OrientedStepper):
 
         self._is_limited = True
 
-        print('Safe travel of ' + self._name + ' axis is ' + str(self._safe_travel_range) + '.')
-        print('Soft limit guard of ' + self._name + ' axis activated.')
+        print('Safe travel of ' + self.name + ' axis is ' + str(self._safe_travel_range) + '.')
+        print('Soft limit guard of ' + self.name + ' axis activated.')
 
     def set_fake_rotational_stepper_limits(self, limit):
 
@@ -672,11 +685,11 @@ class FiniteStepper(OrientedStepper):
             self.signed_position = value
 
         elif value < lower_limit:
-            print('WARNING: Position to go to is outside safe travel range. ' + self._name + ' axis movement limited!')
+            print('WARNING: Position to go to is outside safe travel range. ' + self.name + ' axis movement limited!')
             self.signed_position = lower_limit
 
         elif value > upper_limit:
-            print('WARNING: Position to go to is outside safe travel range. ' + self._name + ' axis movement limited!')
+            print('WARNING: Position to go to is outside safe travel range. ' + self.name + ' axis movement limited!')
             self.signed_position = upper_limit
 
         else:
@@ -712,3 +725,6 @@ class LocatedStepper(FiniteStepper):
         self.mode = "absolute_positioning"
         self.signed_speed = speed
         self.absolute_position = position
+
+    def set_position_offset_to_current_position(self):
+        self._position_offset = - self.limited_position

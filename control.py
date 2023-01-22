@@ -2,6 +2,7 @@ import time
 import serial
 import threading
 import json
+import pigpio
 
 import sequent_ports
 
@@ -17,6 +18,8 @@ JOG_WHEEL_A_GPIO = 23
 JOG_WHEEL_B_GPIO = 24
 # Switches
 ENTER_SW_GPIO = 17
+
+SPARKFUN_BUTTON_GPIO = 21
 
 
 class Controller():
@@ -37,8 +40,10 @@ class Controller():
         self.axes = None
         # setup the hardware optoisolated input and relay outpus cards
         self.io_card = sequent_ports.SequentPorts(SEQUENT_INTERUPT_GPIO)
+        # connect the pigpio library to the pigpiod deamon which needs to be already running on the raspberry pi
+        self.gpios = pigpio.pi()
         # Rotary encoder jog wheel
-        self.wheel = Rotary(clk_gpio=JOG_WHEEL_A_GPIO, dt_gpio=JOG_WHEEL_B_GPIO, sw_gpio=ENTER_SW_GPIO)
+        self.wheel = Rotary(gpios=self.gpios, clk_gpio=JOG_WHEEL_A_GPIO, dt_gpio=JOG_WHEEL_B_GPIO, sw_gpio=ENTER_SW_GPIO)
         self.wheel.setup_rotary(
             min=0,
             max=1000,
@@ -63,8 +68,6 @@ class Controller():
         # tilting of the camera
         tilt = LocatedStepper(self.commander, self.io_card, json.loads(open("tilt_config.json").read()))
 
-        print('All motors powered up and initialized.')
-
         self.axes = {
             'arm': arm,
             'lift': lift,
@@ -73,21 +76,21 @@ class Controller():
             'tilt': tilt
         }
 
+        # power up the steppers
+        for axis in self.axes.values():
+            # power up the individual axes with a slight delay to avoid power drop
+            axis.power_up()
+            time.sleep(0.2)
+
+        # initialize the steppers with a default configuration
+        for axis in self.axes.values():
+            axis.initialize()
+
+        print('All motors powered up and initialized.')
+
     def initialize(self):
 
-        self.create_stepper_instances()
-
-        input("Press Enter to activate joystick mode...")
-
-        activate_joystick_mode(self.axes)
-
-        input("Press Enter to start the homing sequence.")
-
-        self.homing_run()
-
-        motion_controller = MotionController(axes_dict)
-
-        motion_controller.jog_mode(axis_name='arm', wheel=self.wheel)
+        pass
 
         # motion_controller.run_front_linear_sequence(distance=0.6, duration=30, step_frequency=10, start_s=0.3, stop_s=-0.3)
 
@@ -120,6 +123,20 @@ class Controller():
         self.axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
         self.axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
 
+        self.motion_controller = MotionController(self.axes)
+
+        self.setup_hid_callbacks()
+
+    def button_callback(self, _gpio, _level, _tick):
+        print('Button!')
+        self.jog_axis(self.axes['arm'], SPARKFUN_BUTTON_GPIO)
+
+    def setup_hid_callbacks(self):
+
+        self.gpios.set_glitch_filter(SPARKFUN_BUTTON_GPIO, 1000)
+        self.gpios.set_pull_up_down(SPARKFUN_BUTTON_GPIO, pigpio.PUD_UP)
+        self.gpios.callback(SPARKFUN_BUTTON_GPIO, pigpio.FALLING_EDGE, self.button_callback)
+
     def activate_joystick_mode(axes_dict):
         # limit speeds for joystick mode
         arm.speed = 0.05
@@ -140,7 +157,20 @@ class Controller():
 
     def shutdown(self):
         # power down all motors
-        for i in range(1, 6):
-            self.io_card.set_output(i, 0)
+        for axis in self.axes.values():
+            axis.shutdown()
             time.sleep(0.1)
         print('Steppers powered down.')
+        exit()
+
+    def jog_axis(self, axis, jog_button_gpio):
+
+        self.motion_controller.start_jog_mode(axis_name=axis.name, wheel=self.wheel)
+
+        position_reached = True
+
+        while not self.gpios.read(jog_button_gpio):
+            position_reached = self.motion_controller.run_jog_mode(axis_name=axis.name, wheel=self.wheel, position_reached=position_reached)
+
+        axis.stop()
+        axis.mode = 'relative_positioning'

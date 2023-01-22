@@ -49,12 +49,12 @@ class Rotary:
     wait_time = time.time()
     long = False
 
-    def __init__(self, clk_gpio=None, dt_gpio=None, sw_gpio=None, debug=False):
+    def __init__(self, gpios, clk_gpio=None, dt_gpio=None, sw_gpio=None, debug=False):
         if not (clk_gpio and dt_gpio):
             raise BaseException("clk_gpio and dt_gpio pin must be specified!")
 
         self.DEBUG = debug
-        self.pi = pigpio.pi()
+        self.pi = gpios
         self.clk_gpio = clk_gpio
         self.dt_gpio = dt_gpio
         self.pi.set_glitch_filter(self.clk_gpio, self.debounce)
