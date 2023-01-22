@@ -55,7 +55,7 @@ class Controller():
     def rotary_callback(self, counter):
         print("Counter value: ", counter)
 
-    def create_stepper_instances(self):
+    def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
         # Horizontal axis
         arm = LocatedStepper(self.commander, self.io_card, json.loads(open("arm_config.json").read()))
@@ -88,10 +88,6 @@ class Controller():
 
         print('All motors powered up and initialized.')
 
-    def initialize(self):
-
-        pass
-
         # motion_controller.run_front_linear_sequence(distance=0.6, duration=30, step_frequency=10, start_s=0.3, stop_s=-0.3)
 
         # motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
@@ -122,10 +118,6 @@ class Controller():
         self.axes['pan'].set_fake_rotational_stepper_limits(math.pi)
         self.axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
         self.axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
-
-        self.motion_controller = MotionController(self.axes)
-
-        self.setup_hid_callbacks()
 
     def button_callback(self, _gpio, _level, _tick):
         print('Button!')
@@ -161,7 +153,6 @@ class Controller():
             axis.shutdown()
             time.sleep(0.1)
         print('Steppers powered down.')
-        exit()
 
     def jog_axis(self, axis, jog_button_gpio):
 
@@ -174,3 +165,8 @@ class Controller():
 
         axis.stop()
         axis.mode = 'relative_positioning'
+
+    def init_motion_controller(self):
+
+        self.motion_controller = MotionController(self.axes)
+        self.setup_hid_callbacks()

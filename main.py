@@ -1,4 +1,5 @@
 
+from fsm import *
 from control import *
 from view import *
 
@@ -7,10 +8,14 @@ if __name__ == '__main__':
     try:
         # create the controller which will wait for fuction calls from the view
         controller = Controller()
+        # create the finite state machine
+        fsm = CameraMotionControlFsm(controller)
         # create an application
         app = QtWidgets.QApplication(sys.argv)
         # create the main window of the app (QMainWindow)
-        view = View(controller)
+        view = View(fsm)
+        # hand the fsm a reference to the view
+        fsm.set_view(view)
         # show the view in maximized size
         view.showMaximized()
         # launch the app

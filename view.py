@@ -7,28 +7,21 @@ from control import *
 
 class View(QtWidgets.QMainWindow):
 
-    def __init__(self, controller):
+    def __init__(self, fsm):
         super().__init__()
 
-        self.controller = controller
+        self.fsm = fsm
 
         uic.loadUi("mainwindow.ui", self)
 
         self.setWindowTitle("Camera Motion Control")
 
-        self.initialize_button.clicked.connect(self.initialize_button_clicked)
+        self.initialize_button.clicked.connect(self.fsm.initialize)
 
-        self.homing_button.clicked.connect(self.controller.homing_run)
-
-        # self.actionClose.triggered.connect(self.closing_app)
-
-    def initialize_button_clicked(self):
-        self.controller.create_stepper_instances()
-        self.homing_button.setEnabled(True)
+        self.homing_button.clicked.connect(self.fsm.home)
 
     def closeEvent(self, event):
-        print("Window close command issued, shutting down through the controller...")
-        # power down the steppers
-        self.controller.shutdown()
+        print("Window close command issued, passing exit event to FSM.")
+        self.fsm.exit()
         # close the window and exit the application
         event.accept()
