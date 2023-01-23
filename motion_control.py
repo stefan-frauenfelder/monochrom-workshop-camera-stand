@@ -237,7 +237,7 @@ class MotionController():
 
         else:  # everything went smoothly
             self.axes['arm'].stop()
-            self.axes['rotor'] .stop()
+            self.axes['rotor'].stop()
             self.axes['pan'].stop()
 
             sleep_time = loop_count * step_periode
@@ -279,39 +279,41 @@ class MotionController():
         time.sleep(0.2)
         self.go_neutral()
 
-    def start_jog_mode(self, axis_name, wheel):
+    def jog(self, axis, wheel, flag):
 
-        current_position = self.axes[axis_name].absolute_position
+        current_position = axis.absolute_position
 
-        near_limit = self.axes[axis_name].near_limit
-        far_limit = self.axes[axis_name].far_limit
+        near_limit = axis.near_limit
+        far_limit = axis.far_limit
 
         wheel.counter = int(1000 * current_position)
         wheel.min = int(1000 * near_limit)
         wheel.max = int(1000 * far_limit)
 
-        self.axes[axis_name].mode = "speed_mode"
-        self.axes[axis_name].ramp_type = "jerkfree"
-        self.axes[axis_name].jerk = 20
+        axis.mode = "speed_mode"
+        axis.ramp_type = "jerkfree"
+        axis.jerk = 20
 
-    def run_jog_mode(self, axis_name, wheel, position_reached):
+        position_reached = True
 
-        distance = round(float(wheel.counter) / 1000, 3) - round(self.axes[axis_name].absolute_position, 3)
+        while flag.is_set():
 
-        if not (distance == 0):
+            distance = round(float(wheel.counter) / 1000, 3) - round(axis.absolute_position, 3)
 
-            self.axes[axis_name].signed_speed = distance
+            if not (distance == 0):
 
-            if position_reached:  # was reached before, now new need for motion
-                self.axes[axis_name].run()
+                axis.signed_speed = distance
 
-            position_reached = False
+                if position_reached:  # was reached before, now new need for motion
+                    axis.run()
 
-        else:
-            if not position_reached:
-                self.axes[axis_name].stop()
-                position_reached = True
+                position_reached = False
 
-            time.sleep(0.5)
+            else:
+                if not position_reached:
+                    axis.stop()
+                    position_reached = True
 
-        return position_reached
+                time.sleep(0.5)
+
+        axis.stop()

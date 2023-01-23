@@ -51,6 +51,8 @@ class Controller():
             debounce=0,
             rotary_callback=self.rotary_callback
         )
+        # create an event that manages a flag that allows to abort jogging
+        self._jogging_flag = threading.Event()
 
     def rotary_callback(self, counter):
         print("Counter value: ", counter)
@@ -154,17 +156,18 @@ class Controller():
             time.sleep(0.1)
         print('Steppers powered down.')
 
-    def jog_axis(self, axis, jog_button_gpio):
+    def start_jogging(self, axis_name):
+        # get the axis by name
+        axis = self.axes[axis_name]
+        # set the jogging flag to true. It is checked in the while loop of jogging
+        self._jogging_flag.set()
+        # create a new thread and start it
+        thread = threading.Thread(target=lambda: self.motion_controller.jog(axis=axis, wheel=self.wheel, flag=self._jogging_flag))
+        thread.start()
 
-        self.motion_controller.start_jog_mode(axis_name=axis.name, wheel=self.wheel)
-
-        position_reached = True
-
-        while not self.gpios.read(jog_button_gpio):
-            position_reached = self.motion_controller.run_jog_mode(axis_name=axis.name, wheel=self.wheel, position_reached=position_reached)
-
-        axis.stop()
-        axis.mode = 'relative_positioning'
+    def stop_jogging(self):
+        # clearing the jogging flag will cause the previously started jogging thread to return
+        self._jogging_flag.clear()
 
     def init_motion_controller(self):
 

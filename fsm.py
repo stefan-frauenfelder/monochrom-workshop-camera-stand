@@ -16,11 +16,12 @@ class CameraMotionControlFsm(StateMachine):
     initialized = State('Initialized')
     idle = State('Idle')
     final = State('Final', final=True)
-    # jogging_arm = State("Jogging arm")
+    jogging_arm = State("Jogging arm")
 
     initialize = initial.to(initialized)
     home = initialized.to(idle)
     exit = initial.to(final) | idle.to(final) | initialized.to(final)
+    jog_arm = idle.to(jogging_arm)
 
     # def before_cycle(self, event_data=None):
     #     message = event_data.kwargs.get("message", "")
@@ -40,6 +41,12 @@ class CameraMotionControlFsm(StateMachine):
 
     def on_enter_initialized(self):
         self._view.homing_button.setEnabled(True)
+
+    def on_enter_jogging_arm(self):
+        self._controller.start_jogging('arm')
+
+    def on_exit_jogging_arm(self):
+        self._controller.stop_jogging()
 
     def on_exit(self):
         self._controller.shutdown()
