@@ -3,9 +3,9 @@ from statemachine import StateMachine, State
 
 class CameraMotionControlFsm(StateMachine):
 
-    def __init__(self, controller):
+    def __init__(self, coordinator):
         super().__init__()
-        self._controller = controller
+        self._coordinator = coordinator
         self._view = None
 
     def set_view(self, view):
@@ -34,19 +34,19 @@ class CameraMotionControlFsm(StateMachine):
     #     )
 
     def on_initialize(self):
-        self._controller.initialize_steppers()
+        self._coordinator.initialize_steppers()
 
     def on_home(self):
-        self._controller.homing_run()
+        self._coordinator.homing_run()
 
     def on_enter_initialized(self):
         self._view.homing_button.setEnabled(True)
 
     def on_enter_jogging_arm(self):
-        self._controller.start_jogging('arm')
+        self._coordinator.start_jogging('arm')
 
     def on_exit_jogging_arm(self):
-        self._controller.stop_jogging()
+        self._coordinator.stop_jogging()
 
     def on_exit(self):
-        self._controller.shutdown()
+        self._coordinator.shutdown()

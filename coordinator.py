@@ -22,7 +22,7 @@ ENTER_SW_GPIO = 17
 SPARKFUN_BUTTON_GPIO = 21
 
 
-class Controller():
+class Coordinator():
 
     def __init__(self):
         # setup the serial port for RS485 communication to the stepper motors
@@ -55,20 +55,20 @@ class Controller():
         self._jogging_flag = threading.Event()
 
     def rotary_callback(self, counter):
-        print("Counter value: ", counter)
+        print('Counter value: ', counter)
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
         # Horizontal axis
-        arm = LocatedStepper(self.commander, self.io_card, json.loads(open("arm_config.json").read()))
+        arm = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/arm_config.json").read()))
         # Vertical axis
-        lift = LocatedStepper(self.commander, self.io_card, json.loads(open("lift_config.json").read()))
+        lift = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/lift_config.json").read()))
         # rotation of the arm
-        rotor = LocatedStepper(self.commander, self.io_card, json.loads(open("rotor_config.json").read()))
+        rotor = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/rotor_config.json").read()))
         # paning of the camera
-        pan = LocatedStepper(self.commander, self.io_card, json.loads(open("pan_config.json").read()))
+        pan = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/pan_config.json").read()))
         # tilting of the camera
-        tilt = LocatedStepper(self.commander, self.io_card, json.loads(open("tilt_config.json").read()))
+        tilt = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/tilt_config.json").read()))
 
         self.axes = {
             'arm': arm,
@@ -131,21 +131,21 @@ class Controller():
         self.gpios.set_pull_up_down(SPARKFUN_BUTTON_GPIO, pigpio.PUD_UP)
         self.gpios.callback(SPARKFUN_BUTTON_GPIO, pigpio.FALLING_EDGE, self.button_callback)
 
-    def activate_joystick_mode(axes_dict):
+    def activate_joystick_mode(self):
         # limit speeds for joystick mode
-        arm.speed = 0.05
-        lift.speed = 0.05
-        rotor.speed = 0.1
-        pan.speed = 0.1
-        tilt.speed = 0.1
+        self.axes['arm'].speed = 0.05
+        self.axes['lift'].speed = 0.05
+        self.axes['rotor'].speed = 0.1
+        self.axes['pan'].speed = 0.1
+        self.axes['tilt'].speed = 0.1
 
-        for axis in axes_dict.values():
+        for axis in self.axes.values():
             axis.mode = 'joystick_mode'
             axis.run()
 
         input("Press Enter to stop and continue.")
 
-        for axis in axes_dict.values():
+        for axis in self.axes.values():
             axis.stop()
             axis.mode = 'relative_positioning'
 

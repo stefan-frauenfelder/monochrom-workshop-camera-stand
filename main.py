@@ -1,15 +1,16 @@
 
+import sys
 from fsm import *
-from control import *
+from coordinator import *
 from view import *
 
 if __name__ == '__main__':
 
     try:
-        # create the controller which will wait for fuction calls from the view
-        controller = Controller()
+        # create the coordinator which will wait for fuction calls from the view
+        coordinator = Coordinator()
         # create the finite state machine
-        fsm = CameraMotionControlFsm(controller)
+        fsm = CameraMotionControlFsm(coordinator)
         # create an application
         app = QtWidgets.QApplication(sys.argv)
         # create the main window of the app (QMainWindow)
@@ -24,9 +25,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         # exits when you press CTRL+C
         print('Exiting upon KeyboardInterrupt.')
-
-    finally:
-        # always! do this
-        controller.shutdown()
 
 # end of main

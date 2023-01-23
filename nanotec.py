@@ -258,7 +258,7 @@ class NanotecStepper():
     def reset_to_factory_setting(self):
         # reset the motor to factory settings
         self.commander.write_command(self._motor_address, self._command_letters["factory_reset"])
-        time.sleep(1)  # the controller needs a second to accept new commands and should be powered off and back on
+        time.sleep(1)  # the coordinator needs a second to accept new commands and should be powered off and back on
 
     def wait_for_ready(self, polling_time=0.5):
         # this is blocking and normally only called in its own thread
