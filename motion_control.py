@@ -5,7 +5,6 @@ import threading
 
 from nanotec import *
 from motion_math import *
-from rotary import Rotary
 
 default_linear_speed = 0.1
 default_rotor_speed = 0.1
@@ -28,7 +27,7 @@ class MotionController():
     def emergency_stop(self):
         # iterate through axes
         for axis in self.axes.values():
-            # emmediately stop axis
+            # immediately stop axis
             axis.immediate_stop()
 
     def parallel_run(self):
@@ -309,11 +308,12 @@ class MotionController():
 
                 position_reached = False
 
-            else:
-                if not position_reached:
+            else:  # distance is 0
+                if not position_reached:  # was moving before
                     axis.stop()
                     position_reached = True
 
                 time.sleep(0.5)
 
+        # if you are here, flag was cleared from outside
         axis.stop()

@@ -1,4 +1,5 @@
 from statemachine import StateMachine, State
+import threading
 
 
 class CameraMotionControlFsm(StateMachine):
@@ -7,6 +8,8 @@ class CameraMotionControlFsm(StateMachine):
         super().__init__()
         self._coordinator = coordinator
         self._view = None
+
+
 
     def set_view(self, view):
         self._view = view
@@ -22,6 +25,7 @@ class CameraMotionControlFsm(StateMachine):
     home = initialized.to(idle)
     exit = initial.to(final) | idle.to(final) | initialized.to(final)
     jog_arm = idle.to(jogging_arm)
+    stop_jog = jogging_arm.to(idle)
 
     # def before_cycle(self, event_data=None):
     #     message = event_data.kwargs.get("message", "")

@@ -12,17 +12,17 @@ except ModuleNotFoundError:
 import time
 
 # States
-dt_gpio1 = 'D'  # dt_gpio is high
-dt_gpio0 = 'd'  # dt_gpio is low
-clk_gpio1 = 'C'  # clk_gpio is high
-clk_gpio0 = 'c'  # clk_gpio is low
+a_gpio1 = 'D'  # a_gpio is high
+a_gpio0 = 'd'  # a_gpio is low
+b_gpio1 = 'C'  # b_gpio is high
+b_gpio0 = 'c'  # b_gpio is low
 
 # State sequences
-SEQUENCE_UP = dt_gpio1 + clk_gpio1 + dt_gpio0 + clk_gpio0
-SEQUENCE_DOWN = clk_gpio1 + dt_gpio1 + clk_gpio0 + dt_gpio0
+SEQUENCE_UP = a_gpio1 + b_gpio1 + a_gpio0 + b_gpio0
+SEQUENCE_DOWN = b_gpio1 + a_gpio1 + b_gpio0 + a_gpio0
 
 
-class Rotary:
+class RotaryEncoder:
 
     sequence = ''
 
@@ -35,44 +35,26 @@ class Rotary:
     last_counter = 0
     rotary_callback = None
 
-    # Default values for the sw_gpioitch
-    sw_gpio_debounce = 300
-    long_press_opt = False
-    sw_gpio_short_callback = None
-    sw_gpio_long_callback = None
-    up_callback = None
-    down_callback = None
-    sw_short_callback = None
-    sw_long_callback = None
-    sw_debounce = None
-
     wait_time = time.time()
     long = False
 
-    def __init__(self, gpios, clk_gpio=None, dt_gpio=None, sw_gpio=None, debug=False):
-        if not (clk_gpio and dt_gpio):
-            raise BaseException("clk_gpio and dt_gpio pin must be specified!")
+    def __init__(self, gpios, b_gpio=None, a_gpio=None, debug=False):
+        if not (b_gpio and a_gpio):
+            raise BaseException("b_gpio and a_gpio pin must be specified!")
 
         self.DEBUG = debug
         self.pi = gpios
-        self.clk_gpio = clk_gpio
-        self.dt_gpio = dt_gpio
-        self.pi.set_glitch_filter(self.clk_gpio, self.debounce)
-        self.pi.set_glitch_filter(self.dt_gpio, self.debounce)
-        if sw_gpio is not None:
-            self.sw_gpio = sw_gpio
-            self.pi.set_pull_up_down(self.sw_gpio, pigpio.PUD_UP)
-            self.pi.set_glitch_filter(self.sw_gpio, self.sw_gpio_debounce)
+        self.b_gpio = b_gpio
+        self.a_gpio = a_gpio
+        self.pi.set_glitch_filter(self.b_gpio, self.debounce)
+        self.pi.set_glitch_filter(self.a_gpio, self.debounce)
         self.setup_pigpio_callbacks()
 
     def setup_pigpio_callbacks(self):
-        self.pi.callback(self.clk_gpio, pigpio.FALLING_EDGE, self.clk_gpio_fall)
-        self.pi.callback(self.clk_gpio, pigpio.RISING_EDGE, self.clk_gpio_rise)
-        self.pi.callback(self.dt_gpio, pigpio.FALLING_EDGE, self.dt_gpio_fall)
-        self.pi.callback(self.dt_gpio, pigpio.RISING_EDGE, self.dt_gpio_rise)
-        if self.sw_gpio is not None:
-            self.pi.callback(self.sw_gpio, pigpio.FALLING_EDGE, self.sw_gpio_fall)
-            self.pi.callback(self.sw_gpio, pigpio.RISING_EDGE, self.sw_gpio_rise)
+        self.pi.callback(self.b_gpio, pigpio.FALLING_EDGE, self.b_gpio_fall)
+        self.pi.callback(self.b_gpio, pigpio.RISING_EDGE, self.b_gpio_rise)
+        self.pi.callback(self.a_gpio, pigpio.FALLING_EDGE, self.a_gpio_fall)
+        self.pi.callback(self.a_gpio, pigpio.RISING_EDGE, self.a_gpio_rise)
 
     @property
     def counter(self):
@@ -105,77 +87,50 @@ class Rotary:
         if self._counter > value:
             self.counter = value
 
-    def clk_gpio_fall(self, _gpio, _level, _tick):
+    def b_gpio_fall(self, _gpio, _level, _tick):
         if self.DEBUG:
-            print(self.sequence + ':{}'.format(clk_gpio1))
+            print(self.sequence + ':{}'.format(b_gpio1))
         if len(self.sequence) > 2:
             self.sequence = ''
-        self.sequence += clk_gpio1
+        self.sequence += b_gpio1
 
-    def clk_gpio_rise(self, _gpio, _level, _tick):
+    def b_gpio_rise(self, _gpio, _level, _tick):
         if self.DEBUG:
-            print(self.sequence + ':{}'.format(clk_gpio0))
-        self.sequence += clk_gpio0
+            print(self.sequence + ':{}'.format(b_gpio0))
+        self.sequence += b_gpio0
         if self.sequence == SEQUENCE_UP:
             if self.counter < self._max:
                 self.counter += self.scale
-            if self.up_callback:
-                self.up_callback(self._counter)
             self.sequence = ''
 
-    def dt_gpio_fall(self, _gpio, _level, _tick):
+    def a_gpio_fall(self, _gpio, _level, _tick):
         if self.DEBUG:
-            print(self.sequence + ':{}'.format(dt_gpio1))
+            print(self.sequence + ':{}'.format(a_gpio1))
         if len(self.sequence) > 2:
             self.sequence = ''
-        self.sequence += dt_gpio1
+        self.sequence += a_gpio1
 
-    def dt_gpio_rise(self, _gpio, _level, _tick):
+    def a_gpio_rise(self, _gpio, _level, _tick):
         if self.DEBUG:
-            print(self.sequence + ':{}'.format(dt_gpio0))
-        self.sequence += dt_gpio0
+            print(self.sequence + ':{}'.format(a_gpio0))
+        self.sequence += a_gpio0
         if self.sequence == SEQUENCE_DOWN:
             if self.counter > self._min:
                 self.counter -= self.scale
-            if self.down_callback:
-                self.down_callback(self._counter)
             self.sequence = ''
-
-    def sw_gpio_rise(self, _gpio, _level, _tick):
-        if self.long_press_opt:
-            if not self.long:
-                self.short_press()
-
-    def sw_gpio_fall(self, _gpio, _level, _tick):
-        if self.long_press_opt:
-            self.long = False
-            press_time = time.time()
-            while self.pi.read(self.sw_gpio) == 0:
-                self.wait_time = time.time()
-                time.sleep(0.1)
-                if self.wait_time - press_time > 1.5:
-                    self.long_press()
-                    self.long = True
-                    break
-        else:
-            self.short_press()
 
     def setup_rotary(
         self,
         rotary_callback=None,
-        up_callback=None,
-        down_callback=None,
         min=None,
         max=None,
         scale=None,
         debounce=None,
     ):
-        if not (rotary_callback or up_callback or down_callback):
+        if not rotary_callback:
             print('At least one callback should be given')
         # rotary callback has to be set first since the self.counter property depends on it
         self.rotary_callback = rotary_callback
-        self.up_callback = up_callback
-        self.down_callback = down_callback
         if min is not None:
             self._min = min
             self.counter = self._min
@@ -186,36 +141,5 @@ class Rotary:
             self.scale = scale
         if debounce is not None:
             self.debounce = debounce
-            self.pi.set_glitch_filter(self.clk_gpio, self.debounce)
-            self.pi.set_glitch_filter(self.dt_gpio, self.debounce)
-
-    def setup_switch(self,
-                     sw_short_callback=None,
-                     sw_long_callback=None,
-                     debounce=None,
-                     long_press=None
-                     ):
-        assert sw_short_callback is not None or sw_long_callback is not None
-        if sw_short_callback is not None:
-            self.sw_short_callback = sw_short_callback
-        if sw_long_callback is not None:
-            self.sw_long_callback = sw_long_callback
-        if debounce is not None:
-            self.sw_debounce = debounce
-            self.pi.set_glitch_filter(self.sw_gpio, self.sw_debounce)
-        if long_press is not None:
-            self.long_press_opt = long_press
-
-    @staticmethod
-    def watch():
-        """
-        A simple convenience function to have a waiting loop
-        """
-        while True:
-            time.sleep(10)
-
-    def short_press(self):
-        self.sw_short_callback()
-
-    def long_press(self):
-        self.sw_long_callback()
+            self.pi.set_glitch_filter(self.b_gpio, self.debounce)
+            self.pi.set_glitch_filter(self.a_gpio, self.debounce)

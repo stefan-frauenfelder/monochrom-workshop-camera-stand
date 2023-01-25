@@ -2,15 +2,19 @@
 import sys
 from fsm import *
 from coordinator import *
-from view import *
+from hmi import *
 
 if __name__ == '__main__':
 
     try:
-        # create the coordinator which will wait for fuction calls from the view
+        # create the coordinator which will wait for function calls from the view
         coordinator = Coordinator()
         # create the finite state machine
         fsm = CameraMotionControlFsm(coordinator)
+        # create the controller which handles manual user inputs
+        controller = Controller(fsm, coordinator)
+        # hand the coordinator a reference to the wheel of the controller
+        coordinator.set_wheel(controller.wheel)
         # create an application
         app = QtWidgets.QApplication(sys.argv)
         # create the main window of the app (QMainWindow)

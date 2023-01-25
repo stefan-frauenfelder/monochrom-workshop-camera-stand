@@ -13,13 +13,6 @@ from motion_control import *
 
 # port extension cards
 SEQUENT_INTERUPT_GPIO = 5
-# Jog wheel
-JOG_WHEEL_A_GPIO = 23
-JOG_WHEEL_B_GPIO = 24
-# Switches
-ENTER_SW_GPIO = 17
-
-SPARKFUN_BUTTON_GPIO = 21
 
 
 class Coordinator():
@@ -38,24 +31,13 @@ class Coordinator():
         self.commander = Commander(ser=serial_port, lock=commander_lock)
         # axes are empty for now and are created upon user request
         self.axes = None
-        # setup the hardware optoisolated input and relay outpus cards
+        # setup the hardware opto-isolated input and relay outputs cards
         self.io_card = sequent_ports.SequentPorts(SEQUENT_INTERUPT_GPIO)
-        # connect the pigpio library to the pigpiod deamon which needs to be already running on the raspberry pi
-        self.gpios = pigpio.pi()
-        # Rotary encoder jog wheel
-        self.wheel = Rotary(gpios=self.gpios, clk_gpio=JOG_WHEEL_A_GPIO, dt_gpio=JOG_WHEEL_B_GPIO, sw_gpio=ENTER_SW_GPIO)
-        self.wheel.setup_rotary(
-            min=0,
-            max=1000,
-            scale=1,
-            debounce=0,
-            rotary_callback=self.rotary_callback
-        )
         # create an event that manages a flag that allows to abort jogging
         self._jogging_flag = threading.Event()
 
-    def rotary_callback(self, counter):
-        print('Counter value: ', counter)
+    def set_wheel(self, wheel):
+        self.wheel = wheel
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
@@ -121,15 +103,8 @@ class Coordinator():
         self.axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
         self.axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
 
-    def button_callback(self, _gpio, _level, _tick):
-        print('Button!')
-        self.jog_axis(self.axes['arm'], SPARKFUN_BUTTON_GPIO)
-
-    def setup_hid_callbacks(self):
-
-        self.gpios.set_glitch_filter(SPARKFUN_BUTTON_GPIO, 1000)
-        self.gpios.set_pull_up_down(SPARKFUN_BUTTON_GPIO, pigpio.PUD_UP)
-        self.gpios.callback(SPARKFUN_BUTTON_GPIO, pigpio.FALLING_EDGE, self.button_callback)
+        # init only here since motion controller assumes homed axes
+        self.init_motion_controller()
 
     def activate_joystick_mode(self):
         # limit speeds for joystick mode
@@ -170,6 +145,5 @@ class Coordinator():
         self._jogging_flag.clear()
 
     def init_motion_controller(self):
-
         self.motion_controller = MotionController(self.axes)
-        self.setup_hid_callbacks()
+
