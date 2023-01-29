@@ -13,8 +13,8 @@ if __name__ == '__main__':
         fsm = CameraMotionControlFsm(coordinator)
         # create the controller which handles manual user inputs
         controller = Controller(fsm, coordinator)
-        # hand the coordinator a reference to the wheel of the controller
-        coordinator.set_wheel(controller.wheel)
+        # hand the coordinator a reference to the controller
+        coordinator.set_controller(controller)
         # create an application
         app = QtWidgets.QApplication(sys.argv)
         # create the main window of the app (QMainWindow)

@@ -56,6 +56,19 @@
          <string>Run homing sequence</string>
         </property>
        </widget>
+       <widget class="QPushButton" name="joystick_calibration_button">
+        <property name="geometry">
+         <rect>
+          <x>80</x>
+          <y>250</y>
+          <width>201</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Joystick calibration</string>
+        </property>
+       </widget>
       </widget>
       <widget class="QWidget" name="jog_tab">
        <attribute name="title">

@@ -22,11 +22,13 @@ class CameraMotionControlFsm(StateMachine):
 
     jogging_arm = State("Jogging arm")
 
-    moving_to_start = State('Moving to start position')
-    ready = State('Ready for target move')
-    executing_move = State('Executing target move')
-    done = State('Done with target move')
-    returning_to_neutral = State('Returning to neutral position')
+    joystick_calibration = State('Joystick calibration')
+
+    # moving_to_start = State('Moving to start position')
+    # ready = State('Ready for target move')
+    # executing_move = State('Executing target move')
+    # done = State('Done with target move')
+    # returning_to_neutral = State('Returning to neutral position')
 
     # definition of events (transitions)
     initialize = initial.to(initialized)
@@ -34,12 +36,14 @@ class CameraMotionControlFsm(StateMachine):
     exit = initial.to(final) | idle.to(final) | initialized.to(final)
     jog_arm = idle.to(jogging_arm)
     stop_jog = jogging_arm.to(idle)
+    calibrate_joystick = initial.to(joystick_calibration)
+    joystick_calibrated = joystick_calibration.to(initial)
 
-    get_ready = idle.to(moving_to_start)
-    reached_start = moving_to_start.to(ready)
-    go = ready.to(executing_move)
-    reached_target = executing_move.to(done)
-    go_home = done.to(idle)
+    # get_ready = idle.to(moving_to_start)
+    # reached_start = moving_to_start.to(ready)
+    # go = ready.to(executing_move)
+    # reached_target = executing_move.to(done)
+    # go_home = done.to(idle)
 
     # def before_cycle(self, event_data=None):
     #     message = event_data.kwargs.get("message", "")
@@ -53,6 +57,12 @@ class CameraMotionControlFsm(StateMachine):
 
     def on_initialize(self):
         self._coordinator.initialize_steppers()
+
+    def on_enter_joystick_calibration(self):
+        # start the calibration method
+        self._coordinator.calibrate_joystick()
+        # return to initial state
+        self.joystick_calibrated()
 
     def on_home(self):
         self._coordinator.homing_run()

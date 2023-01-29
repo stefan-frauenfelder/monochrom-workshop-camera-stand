@@ -18,6 +18,7 @@ SEQUENT_INTERUPT_GPIO = 5
 class Coordinator():
 
     def __init__(self):
+
         # setup the serial port for RS485 communication to the stepper motors
         serial_port = serial.Serial(port='/dev/ttyUSB0',
                                     baudrate=115200,
@@ -31,13 +32,18 @@ class Coordinator():
         self.commander = Commander(ser=serial_port, lock=commander_lock)
         # axes are empty for now and are created upon user request
         self.axes = None
+        self.controller = None
         # setup the hardware opto-isolated input and relay outputs cards
         self.io_card = sequent_ports.SequentPorts(SEQUENT_INTERUPT_GPIO)
-        # create an event that manages a flag that allows to abort jogging
+        # create a couple of events which manage flags that allow to abort threads
         self._jogging_flag = threading.Event()
+        self._joystick_calibration_flag = threading.Event()
 
-    def set_wheel(self, wheel):
-        self.wheel = wheel
+    def set_controller(self, controller):
+        self.controller = controller
+
+    def set_adc(self, adc):
+        self.adc = adc
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
@@ -137,7 +143,7 @@ class Coordinator():
         # set the jogging flag to true. It is checked in the while loop of jogging
         self._jogging_flag.set()
         # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.motion_controller.jog(axis=axis, wheel=self.wheel, flag=self._jogging_flag))
+        thread = threading.Thread(target=lambda: self.motion_controller.jog(axis=axis, wheel=self.controller.wheel, flag=self._jogging_flag))
         thread.start()
 
     def stop_jogging(self):
@@ -146,4 +152,16 @@ class Coordinator():
 
     def init_motion_controller(self):
         self.motion_controller = MotionController(self.axes)
+
+    def calibrate_joystick(self):
+        # set the flag to true. It is checked in the while loop of calibration
+        self._joystick_calibration_flag.set()
+        # create a new thread and start it
+        thread = threading.Thread(target=lambda: self.controller.calibrate_joystick(flag=self._joystick_calibration_flag))
+        thread.start()
+
+    def stop_calibrating_joystick(self):
+        # clearing the flag will cause the previously started calibration thread to return
+        self._joystick_calibration_flag.clear()
+
 
