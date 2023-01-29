@@ -282,8 +282,8 @@ class MotionController():
 
         current_position = axis.absolute_position
 
-        near_limit = axis.near_limit
-        far_limit = axis.far_limit
+        near_limit = axis.near_absolute_limit
+        far_limit = axis.far_absolute_limit
 
         wheel.counter = int(1000 * current_position)
         wheel.min = int(1000 * near_limit)

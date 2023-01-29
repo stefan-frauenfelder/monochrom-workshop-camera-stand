@@ -728,3 +728,11 @@ class LocatedStepper(FiniteStepper):
 
     def set_position_offset_to_current_position(self):
         self._position_offset = - self.limited_position
+
+    def get_absolute_near_limit(self):
+        return self.near_limit + self._position_offset
+    near_absolute_limit = property(get_absolute_near_limit, None)
+
+    def get_absolute_far_limit(self):
+        return self.far_limit + self._position_offset
+    far_absolute_limit = property(get_absolute_far_limit, None)

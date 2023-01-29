@@ -19,13 +19,27 @@ class CameraMotionControlFsm(StateMachine):
     initialized = State('Initialized')
     idle = State('Idle')
     final = State('Final', final=True)
+
     jogging_arm = State("Jogging arm")
 
+    moving_to_start = State('Moving to start position')
+    ready = State('Ready for target move')
+    executing_move = State('Executing target move')
+    done = State('Done with target move')
+    returning_to_neutral = State('Returning to neutral position')
+
+    # definition of events (transitions)
     initialize = initial.to(initialized)
     home = initialized.to(idle)
     exit = initial.to(final) | idle.to(final) | initialized.to(final)
     jog_arm = idle.to(jogging_arm)
     stop_jog = jogging_arm.to(idle)
+
+    get_ready = idle.to(moving_to_start)
+    reached_start = moving_to_start.to(ready)
+    go = ready.to(executing_move)
+    reached_target = executing_move.to(done)
+    go_home = done.to(idle)
 
     # def before_cycle(self, event_data=None):
     #     message = event_data.kwargs.get("message", "")
