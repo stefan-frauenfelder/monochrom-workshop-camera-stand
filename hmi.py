@@ -5,7 +5,6 @@ from PyQt5 import uic
 from joystick import *
 from coordinator import *
 from rotary import RotaryEncoder
-from lanc import *
 
 # Jog wheel
 JOG_WHEEL_A_GPIO = 23
