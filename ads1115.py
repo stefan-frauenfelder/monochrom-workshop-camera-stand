@@ -103,10 +103,9 @@ class ADS1115:
         self.coefficient = None
         if range:
             self.gain = range
-            self.coefficient_from_gain(range)
-        else:
+        else:  # default
             self.gain = ADS1115_REG_CONFIG_PGA_6_144V
-            self.coefficient_from_gain(ADS1115_REG_CONFIG_PGA_6_144V)
+        self.coefficient_from_gain(self.gain)
         self.channel = 0
 
     def coefficient_from_gain(self, gain):
@@ -124,10 +123,6 @@ class ADS1115:
             self.coefficient = 0.0078125
         else:
             self.coefficient = 0.125
-
-    def set_channel(self, channel):
-        self.channel = channel
-        return self.channel
 
     def set_single(self):
 
@@ -162,8 +157,8 @@ class ADS1115:
         return value
 
     def read_voltage(self, channel):
-        self.set_channel(channel)
+        self.channel = channel
         self.set_single()
-        time.sleep(0.1)
-        return self.read_value()
+        time.sleep(0.02)
+        return float(self.read_value()) / 1000
 
