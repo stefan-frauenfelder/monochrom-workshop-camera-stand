@@ -80,7 +80,7 @@ class Coordinator():
 
         # motion_controller.run_front_linear_sequence(distance=0.6, duration=30, step_frequency=10, start_s=0.3, stop_s=-0.3)
 
-        # motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.pi - 1)
+        # motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.gpio - 1)
 
     def homing_run(self):
         # define individual threads for all axis to run homing in parallel
@@ -157,7 +157,7 @@ class Coordinator():
         # set the flag to true. It is checked in the while loop of calibration
         self._joystick_calibration_flag.set()
         # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.controller.calibrate_joystick(flag=self._joystick_calibration_flag))
+        thread = threading.Thread(target=lambda: self.controller.calibrate_joystick())
         thread.start()
 
     def stop_calibrating_joystick(self):

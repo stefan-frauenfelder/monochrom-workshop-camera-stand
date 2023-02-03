@@ -20,10 +20,36 @@ class ZCamE2:
                 self.ready = True
                 self.sync_time()
                 print('Camera time synchronized.')
+                self.set_mode('record')
             else:
                 print('Camera control session could not be obtained.')
         else:
             print('Unable to connect to camera.')
+
+    def set_mode(self, mode):
+        if mode == 'record':
+            payload = {'action': 'to_rec'}
+        elif mode == 'playback':
+            payload = {'action': 'to_pb'}
+        elif mode == 'standby':
+            payload = {'action': 'to_standby'}
+        else:
+            raise ValueError('This is not a valid camera mode.')
+        # send the command and allow for a long timeout in case the camera is in standby
+        self.get_response(subdir='ctrl/mode', payload=payload, timeout=2)
+
+    def start_recording(self):
+        # verify the camera is in recording mode
+        response = self.get_response(subdir='ctrl/mode', payload={'action': 'query'})
+        if not response.json()['msg'] == 'rec':
+            # switch to recording mode
+            self.set_mode('record')
+        # start recording
+        response = self.get_response(subdir='ctrl/rec', payload={'action': 'start'})
+
+    def stop_recording(self):
+        # stop recording
+        response = self.get_response(subdir='ctrl/rec', payload={'action': 'stop'})
 
     def sync_time(self):
         # get date and time
@@ -50,7 +76,7 @@ class ZCamE2:
         else:
             return response
 
-    def get_response(self, subdir='info', payload=None):
+    def get_response(self, subdir='info', payload=None, timeout=0.1):
         # this is a wrapper to do all the error handling
         # assemble URL
         url = 'http://' + E2_IP + '/' + subdir
@@ -59,9 +85,9 @@ class ZCamE2:
         # send get request
         try:
             if payload:
-                response = requests.get(url, params=payload, timeout=0.1)
+                response = requests.get(url, params=payload, timeout=timeout)
             else:
-                response = requests.get(url, timeout=0.1)
+                response = requests.get(url, timeout=timeout)
             # check for http errors
             response.raise_for_status()
         except requests.exceptions.HTTPError as error_h:

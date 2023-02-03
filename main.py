@@ -15,7 +15,7 @@ if __name__ == '__main__':
         # create the camera interface class to control the camera
         cam = ZCamE2()
         # create the controller which handles manual user inputs
-        controller = Controller(fsm, coordinator)
+        controller = Controller(fsm, coordinator, cam)
         # hand the coordinator a reference to the controller
         coordinator.set_controller(controller)
         # create an application

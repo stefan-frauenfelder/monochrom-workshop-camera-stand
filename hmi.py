@@ -5,6 +5,7 @@ from PyQt5 import uic
 from joystick import *
 from coordinator import *
 from rotary import RotaryEncoder
+from zcame2 import *
 
 # Jog wheel
 JOG_WHEEL_A_GPIO = 23
@@ -43,7 +44,7 @@ class View(QtWidgets.QMainWindow):
 
 class Controller:
 
-    def __init__(self, fsm, coordinator):
+    def __init__(self, fsm, coordinator, cam: ZCamE2):
         # let the controller know about the fsm
         self.fsm = fsm
         # hand the controller a reference to the coordinator
@@ -58,6 +59,8 @@ class Controller:
 
         # create a joystick
         self.joystick = Joystick()
+
+        self.cam = cam
 
     def rotary_callback(self, counter):
         print('Counter value: ', counter)
@@ -75,4 +78,8 @@ class Controller:
         self.gpios.callback(SPARKFUN_BUTTON_GPIO, pigpio.RISING_EDGE, self.button_up_callback)
 
     def calibrate_joystick(self):
-        self.joystick.calibrate()
+
+        self.cam.start_recording()
+        time.sleep(10)
+        self.cam.stop_recording()
+
