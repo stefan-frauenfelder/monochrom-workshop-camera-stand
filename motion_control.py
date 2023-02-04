@@ -9,7 +9,7 @@ import sequent_ports
 
 from nanotec import *
 from motion_math import *
-from hardware import wheel
+from hardware import wheel as global_wheel
 
 default_linear_speed = 0.1
 default_rotor_speed = 0.1
@@ -34,14 +34,19 @@ class MotionController:
         commander_lock = threading.Lock()
         # create a single commander using the single serial port
         self.commander = Commander(ser=serial_port, lock=commander_lock)
-        # axes are empty for now and are created upon user request
-        self.axes = None
+        # _axes are empty for now and are created upon user request
+        self._axes = None
+        self._jogging_axis = None
+
+        self._wheel = global_wheel
 
         # setup the hardware opto-isolated input and relay outputs cards
         self.io_card = sequent_ports.SequentPorts(SEQUENT_INTERRUPT_GPIO)
         # create a couple of events which manage flags that allow to abort threads
         self._jogging_flag = threading.Event()
-        self._joystick_calibration_flag = threading.Event()
+
+    def set_jogging_axis(self, axis_name):
+        self._jogging_axis = self._axes[axis_name]
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
@@ -56,7 +61,7 @@ class MotionController:
         # tilting of the camera
         tilt = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/tilt_config.json").read()))
 
-        self.axes = {
+        self._axes = {
             'arm': arm,
             'lift': lift,
             'rotor': rotor,
@@ -65,13 +70,13 @@ class MotionController:
         }
 
         # power up the steppers
-        for axis in self.axes.values():
-            # power up the individual axes with a slight delay to avoid power drop
+        for axis in self._axes.values():
+            # power up the individual _axes with a slight delay to avoid power drop
             axis.power_up()
             time.sleep(0.2)
 
         # initialize the steppers with a default configuration
-        for axis in self.axes.values():
+        for axis in self._axes.values():
             axis.initialize()
 
         print('All motors powered up and initialized.')
@@ -82,13 +87,13 @@ class MotionController:
 
     def homing_run(self):
         # define individual threads for all axis to run homing in parallel
-        find_limits_arm_thread = threading.Thread(target=self.axes['arm'].find_linear_stepper_limits)
-        find_limits_lift_thread = threading.Thread(target=self.axes['lift'].find_linear_stepper_limits)
+        find_limits_arm_thread = threading.Thread(target=self._axes['arm'].find_linear_stepper_limits)
+        find_limits_lift_thread = threading.Thread(target=self._axes['lift'].find_linear_stepper_limits)
         # the lambda prevents the function from being interpreted here already. Don't ask me how. I have no clue.
-        find_limits_rotor_thread = threading.Thread(target=lambda: self.axes['rotor'].find_rotor_origin(limit_switch='external', direction=Direction.negative))
-        find_origin_pan_thread = threading.Thread(target=lambda: self.axes['pan'].find_rotational_stepper_origin(limit_switch='internal', direction=Direction.negative))
-        find_origin_tilt_thread = threading.Thread(target=lambda: self.axes['tilt'].find_rotational_stepper_origin(limit_switch='internal', direction=Direction.positive))
-        # find limits of major axes
+        find_limits_rotor_thread = threading.Thread(target=lambda: self._axes['rotor'].find_rotor_origin(limit_switch='external', direction=Direction.negative))
+        find_origin_pan_thread = threading.Thread(target=lambda: self._axes['pan'].find_rotational_stepper_origin(limit_switch='internal', direction=Direction.negative))
+        find_origin_tilt_thread = threading.Thread(target=lambda: self._axes['tilt'].find_rotational_stepper_origin(limit_switch='internal', direction=Direction.positive))
+        # find limits of major _axes
         find_limits_arm_thread.start()
         find_limits_lift_thread.start()
         find_limits_rotor_thread.start()
@@ -96,72 +101,75 @@ class MotionController:
         find_limits_arm_thread.join()
         find_limits_lift_thread.join()
         find_limits_rotor_thread.join()
-        # find limits of minor axes
+        # find limits of minor _axes
         find_origin_pan_thread.start()
         find_origin_tilt_thread.start()
         # wait for completion
         find_origin_pan_thread.join()
         find_origin_tilt_thread.join()
         # set fake limits because there are no limit switches yet
-        self.axes['pan'].set_fake_rotational_stepper_limits(math.pi)
-        self.axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
-        self.axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
+        self._axes['pan'].set_fake_rotational_stepper_limits(math.pi)
+        self._axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
+        self._axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
 
     def activate_joystick_mode(self):
         # limit speeds for joystick mode
-        self.axes['arm'].speed = 0.05
-        self.axes['lift'].speed = 0.05
-        self.axes['rotor'].speed = 0.1
-        self.axes['pan'].speed = 0.1
-        self.axes['tilt'].speed = 0.1
+        self._axes['arm'].speed = 0.05
+        self._axes['lift'].speed = 0.05
+        self._axes['rotor'].speed = 0.1
+        self._axes['pan'].speed = 0.1
+        self._axes['tilt'].speed = 0.1
 
-        for axis in self.axes.values():
+        for axis in self._axes.values():
             axis.mode = 'joystick_mode'
             axis.run()
 
         input("Press Enter to stop and continue.")
 
-        for axis in self.axes.values():
+        for axis in self._axes.values():
             axis.stop()
             axis.mode = 'relative_positioning'
 
     def shutdown(self):
         # power down all motors
-        for axis in self.axes.values():
+        for axis in self._axes.values():
             axis.shutdown()
             time.sleep(0.1)
         print('Steppers powered down.')
 
-    def start_jogging(self, axis_name):
-        # get the axis by name
-        axis = self.axes[axis_name]
+    def start_jogging(self):
         # set the jogging flag to true. It is checked in the while loop of jogging
         self._jogging_flag.set()
         # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.jog(axis=axis, wheel=self.controller.wheel, flag=self._jogging_flag))
+        thread = threading.Thread(target=lambda: self.jog(wheel=self._wheel, flag=self._jogging_flag))
         thread.start()
 
     def stop_jogging(self):
         # clearing the jogging flag will cause the previously started jogging thread to return
         self._jogging_flag.clear()
 
-
     def disarm_all(self):
-        # iterate through axes
-        for axis in self.axes.values():
+        # iterate through _axes
+        for axis in self._axes.values():
             axis.armed = False
 
     def emergency_stop(self):
-        # iterate through axes
-        for axis in self.axes.values():
+        # iterate through _axes
+        for axis in self._axes.values():
             # immediately stop axis
             axis.immediate_stop()
+
+    def emergency_shutdown(self):
+        # power down all motors
+        for axis in self._axes.values():
+            axis.shutdown()
+        print('Steppers powered down.')
 
     def parallel_run(self):
         # create a list of threads
         threads = []
-        # iterate through axes
-        for axis in self.axes.values():
+        # iterate through _axes
+        for axis in self._axes.values():
             # check if it was configured for a run (travel was set but run was not called)
             if axis.armed:
                 # create a new (blocking) thread, add it to the list, and start it
@@ -175,16 +183,16 @@ class MotionController:
     def two_simple_motions(self):
 
         # move arm to the starting point
-        self.axes['arm'].goto_absolute_position(position=0.5, speed=default_linear_speed)
-        self.axes['arm'].blocking_run()
+        self._axes['arm'].goto_absolute_position(position=0.5, speed=default_linear_speed)
+        self._axes['arm'].blocking_run()
 
-        self.axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
-        self.axes['lift'].blocking_run()
+        self._axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
+        self._axes['lift'].blocking_run()
 
         input("Press Enter to continue...")
 
-        self.axes['arm'].goto_absolute_position(position=0.7, speed=default_linear_speed)
-        self.axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
+        self._axes['arm'].goto_absolute_position(position=0.7, speed=default_linear_speed)
+        self._axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
 
         input("Press Enter to continue...")
 
@@ -195,56 +203,56 @@ class MotionController:
     def move_to_start_angle(self, distance, radius, start_angle):
 
         # lift the pen from the paper
-        self.axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
-        self.axes['arm'].goto_absolute_position(position=0.4, speed=default_linear_speed)
+        self._axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
+        self._axes['arm'].goto_absolute_position(position=0.4, speed=default_linear_speed)
         self.parallel_run()
 
         input("Press Enter to arm motors...")
 
         # move arm to the starting point
         arm_start_position = circular_motion_arm_position(start_angle, distance, radius)
-        self.axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
+        self._axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
         # move rotor to starting point
         rotor_starting_angle = circular_motion_rotor_angle(start_angle, distance, radius)
-        self.axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
+        self._axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
         # move pan to starting point
         pan_starting_angle = circular_motion_pan_angle(start_angle, distance, radius)
-        self.axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
+        self._axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
         # move the lift to above target height
-        self.axes['lift'].goto_absolute_position(position=0.9, speed=default_linear_speed)
+        self._axes['lift'].goto_absolute_position(position=0.9, speed=default_linear_speed)
         # point the pen down
-        self.axes['tilt'].goto_absolute_position(position=-0.5, speed=default_pan_tilt_speed)
+        self._axes['tilt'].goto_absolute_position(position=-0.5, speed=default_pan_tilt_speed)
 
         input("Press Enter to start parallel run...")
         self.parallel_run()
 
         # lower the pen to the paper
-        self.axes['lift'].goto_absolute_position(position=0.851, speed=default_linear_speed)
-        self.axes['lift'].blocking_run()
+        self._axes['lift'].goto_absolute_position(position=0.851, speed=default_linear_speed)
+        self._axes['lift'].blocking_run()
 
     def back_up(self):
 
         # lift the pen from the paper
-        self.axes['lift'].goto_absolute_position(position=0.87, speed=default_linear_speed)
-        self.axes['lift'].blocking_run()
+        self._axes['lift'].goto_absolute_position(position=0.87, speed=default_linear_speed)
+        self._axes['lift'].blocking_run()
 
-        self.axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
+        self._axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
         # go to neutral
-        self.axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self.axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self.axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
+        self._axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self._axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self._axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
         # retract the arm
-        self.axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
+        self._axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
         # execute
         self.parallel_run()
 
     def go_neutral(self):
         # go to neutral
-        self.axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self.axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self.axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
+        self._axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self._axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
+        self._axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
         # retract the arm
-        self.axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
+        self._axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
         # execute
         self.parallel_run()
 
@@ -253,17 +261,17 @@ class MotionController:
         input("Press Enter to start circular motion...")
 
         # get arm, rotor, and pan ready for circular motion using speed mode
-        self.axes['arm'].mode = "speed_mode"
-        self.axes['arm'].ramp_type = "jerkfree"
-        self.axes['arm'].jerk = 5
+        self._axes['arm'].mode = "speed_mode"
+        self._axes['arm'].ramp_type = "jerkfree"
+        self._axes['arm'].jerk = 5
 
-        self.axes['rotor'].mode = "speed_mode"
-        self.axes['rotor'].ramp_type = "jerkfree"
-        self.axes['rotor'].jerk = 5
+        self._axes['rotor'].mode = "speed_mode"
+        self._axes['rotor'].ramp_type = "jerkfree"
+        self._axes['rotor'].jerk = 5
 
-        self.axes['pan'].mode = "speed_mode"
-        self.axes['pan'].ramp_type = "jerkfree"
-        self.axes['pan'].jerk = 5
+        self._axes['pan'].mode = "speed_mode"
+        self._axes['pan'].ramp_type = "jerkfree"
+        self._axes['pan'].jerk = 5
 
         step_periode = 1.0 / step_frequency
 
@@ -281,16 +289,16 @@ class MotionController:
 
                 t = time.time() - start_time
 
-                self.axes['arm'].signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
+                self._axes['arm'].signed_speed = circular_motion_arm_speed(t, k, start_angle, distance, radius)
 
-                self.axes['rotor'].signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
+                self._axes['rotor'].signed_speed = circular_motion_rotor_speed(t, k, start_angle, distance, radius)
 
-                self.axes['pan'].signed_speed = circular_motion_pan_speed(t, k, start_angle, distance, radius)
+                self._axes['pan'].signed_speed = circular_motion_pan_speed(t, k, start_angle, distance, radius)
 
                 if loop_count == 0:
-                    self.axes['arm'].run()
-                    self.axes['rotor'].run()
-                    self.axes['pan'].run()
+                    self._axes['arm'].run()
+                    self._axes['rotor'].run()
+                    self._axes['pan'].run()
 
                 loop_count += 1
 
@@ -301,9 +309,9 @@ class MotionController:
             self.emergency_stop()
 
         else:  # everything went smoothly
-            self.axes['arm'].stop()
-            self.axes['rotor'].stop()
-            self.axes['pan'].stop()
+            self._axes['arm'].stop()
+            self._axes['rotor'].stop()
+            self._axes['pan'].stop()
 
             sleep_time = loop_count * step_periode
 
@@ -314,17 +322,17 @@ class MotionController:
         input("Press Enter to start linear motion...")
 
         # get arm, rotor, and pan ready for circular motion using speed mode
-        self.axes['arm'].mode = "speed_mode"
-        self.axes['arm'].ramp_type = "jerkfree"
-        self.axes['arm'].jerk = 5
+        self._axes['arm'].mode = "speed_mode"
+        self._axes['arm'].ramp_type = "jerkfree"
+        self._axes['arm'].jerk = 5
 
-        self.axes['rotor'].mode = "speed_mode"
-        self.axes['rotor'].ramp_type = "jerkfree"
-        self.axes['rotor'].jerk = 5
+        self._axes['rotor'].mode = "speed_mode"
+        self._axes['rotor'].ramp_type = "jerkfree"
+        self._axes['rotor'].jerk = 5
 
-        self.axes['pan'].mode = "speed_mode"
-        self.axes['pan'].ramp_type = "jerkfree"
-        self.axes['pan'].jerk = 5
+        self._axes['pan'].mode = "speed_mode"
+        self._axes['pan'].ramp_type = "jerkfree"
+        self._axes['pan'].jerk = 5
 
         step_periode = 1.0 / step_frequency
 
@@ -342,16 +350,16 @@ class MotionController:
 
                 t = time.time() - start_time
 
-                self.axes['arm'].signed_speed = front_linear_motion_arm_speed(t, k, start_s, distance)
+                self._axes['arm'].signed_speed = front_linear_motion_arm_speed(t, k, start_s, distance)
 
-                self.axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+                self._axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
 
-                self.axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+                self._axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
 
                 if loop_count == 0:
-                    self.axes['arm'].run()
-                    self.axes['rotor'].run()
-                    self.axes['pan'].run()
+                    self._axes['arm'].run()
+                    self._axes['rotor'].run()
+                    self._axes['pan'].run()
 
                 loop_count += 1
 
@@ -362,9 +370,9 @@ class MotionController:
             self.emergency_stop()
 
         else:  # everything went smoothly
-            self.axes['arm'].stop()
-            self.axes['rotor'].stop()
-            self.axes['pan'].stop()
+            self._axes['arm'].stop()
+            self._axes['rotor'].stop()
+            self._axes['pan'].stop()
 
             sleep_time = loop_count * step_periode
 
@@ -373,13 +381,13 @@ class MotionController:
     def move_to_front_linear_start_position(self, distance, start_s):
         # move arm to the starting point
         arm_start_position = front_linear_motion_arm_position(start_s, distance)
-        self.axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
+        self._axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
         # move rotor to starting point
         rotor_starting_angle = front_linear_motion_rotor_pan_angle(start_s, distance)
-        self.axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
+        self._axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
         # move pan to starting point
         pan_starting_angle = - rotor_starting_angle
-        self.axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
+        self._axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
         # execute
         self.parallel_run()
 
@@ -405,7 +413,9 @@ class MotionController:
         time.sleep(0.2)
         self.go_neutral()
 
-    def jog(self, axis, wheel, flag):
+    def jog(self, wheel, flag):
+
+        axis = self._jogging_axis
 
         current_position = axis.absolute_position
 

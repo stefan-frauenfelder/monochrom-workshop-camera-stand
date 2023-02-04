@@ -1,7 +1,7 @@
 import sys
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from hmi import View
+from hmi import View, Controller
 
 if __name__ == '__main__':
 
@@ -10,6 +10,8 @@ if __name__ == '__main__':
         app = QtWidgets.QApplication(sys.argv)
         # create the main window of the app (QMainWindow)
         view = View()
+        # create the controller which handles manual user inputs
+        controller = Controller()
         # show the view in maximized size
         view.showMaximized()
         # launch the app

@@ -4,20 +4,21 @@ import threading
 from motion_control import motion_controller
 
 
-class CameraMotionControlFsm(StateMachine):
+class MechanicsFsm(StateMachine):
 
     def __init__(self):
         super().__init__()
 
     # definition of states
     s_initial = State('Initial', initial=True)
+    s_initializing = State('Initializing')
     s_initialized = State('Initialized')
+    s_homing = State('Homing')
     s_idle = State('Idle')
-    s_final = State('Final', final=True)
+    s_eshutdown = State('Emergency Shutdown')
+    # s_final = State('Final', final=True)
 
-    s_jogging = State("Jogging arm")
-
-    s_joystick_calibration = State('Joystick calibration')
+    s_jogging = State("Jogging")
 
     # moving_to_start = State('Moving to start position')
     # ready = State('Ready for target move')
@@ -25,14 +26,16 @@ class CameraMotionControlFsm(StateMachine):
     # done = State('Done with target move')
     # returning_to_neutral = State('Returning to neutral position')
 
-    # definition of events (transitions)
-    e_initialize = s_initial.to(s_initialized)
-    e_home = s_initialized.to(s_idle)
-    e_exit = s_initial.to(s_final) | s_idle.to(s_final) | s_initialized.to(s_final)
+    # definition of events, triggering transitions
+    e_initialize = s_initial.to(s_initializing)
+    e_initialized = s_initializing.to(s_initialized)
+    e_home = s_initialized.to(s_homing)
+    e_homed = s_homing.to(s_idle)
+
+    e_eshutdown = s_initial.to(s_eshutdown) | s_idle.to(s_eshutdown) | s_initialized.to(s_eshutdown) | s_initializing.to(s_eshutdown) | s_homing.to(s_eshutdown)
+
     e_jog = s_idle.to(s_jogging)
     e_stop_jog = s_jogging.to(s_idle)
-    e_calibrate_joystick = s_initial.to(s_joystick_calibration)
-    e_joystick_calibrated = s_joystick_calibration.to(s_initial)
 
     # get_ready = s_idle.to(moving_to_start)
     # reached_start = moving_to_start.to(ready)
@@ -40,31 +43,25 @@ class CameraMotionControlFsm(StateMachine):
     # reached_target = executing_move.to(done)
     # go_home = done.to(s_idle)
 
-    # def before_cycle(self, event_data=None):
-    #     message = event_data.kwargs.get("message", "")
-    #     message = ". " + message if message else ""
-    #     return "Running {} from {} to {}{}".format(
-    #         event_data.event,
-    #         event_data.transition.source.id,
-    #         event_data.transition.target.id,
-    #         message,
-    #     )
-
-    def on_e_initialize(self):
+    def on_enter_s_initializing(self):
         motion_controller.initialize_steppers()
+        self.e_initialized()
 
-    def on_e_home(self):
+    def on_enter_s_homing(self):
         motion_controller.homing_run()
+        self.e_homed()
 
-    def on_enter_s_jogging_arm(self):
-        motion_controller.start_jogging('arm')
+    def on_enter_s_jogging(self):
+        motion_controller.set_jogging_axis('arm')
+        motion_controller.start_jogging()
 
     def on_exit_s_jogging(self):
         motion_controller.stop_jogging()
 
-    def on_e_exit(self):
-        motion_controller.shutdown()
+    def on_enter_s_eshutdown(self):
+        print(f'\033[91mWARNING: Emergency shutdown sequence triggered!')
+        motion_controller.emergency_shutdown()
 
 
 # create the finite state machine
-fsm = CameraMotionControlFsm()
+mechanics_fsm = MechanicsFsm()
