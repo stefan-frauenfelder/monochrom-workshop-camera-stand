@@ -29,16 +29,18 @@ class View(QtWidgets.QMainWindow):
 
         self.setWindowTitle("Camera Motion Control")
 
-        self.initialize_button.clicked.connect(self.fsm.initialize)
+        self.initialize_button.clicked.connect(self.fsm.e_initialize)
 
-        self.homing_button.clicked.connect(self.fsm.home)
+        self.homing_button.clicked.connect(self.fsm.e_home)
 
-        self.joystick_calibration_button.clicked.connect(self.fsm.calibrate_joystick)
+        self.joystick_calibration_button.clicked.connect(self.fsm.e_calibrate_joystick)
+
+        self.estop_button.clicked.connect(self.fsm.e_exit)
 
     def closeEvent(self, event):
-        print("Window close command issued, passing exit event to FSM.")
-        self.fsm.exit()
-        # close the window and exit the application
+        print("Window close command issued, passing e_exit event to FSM.")
+        self.fsm.e_exit()
+        # close the window and e_exit the application
         event.accept()
 
 
@@ -66,10 +68,10 @@ class Controller:
         print('Counter value: ', counter)
 
     def button_down_callback(self, _gpio, _level, _tick):
-        self.fsm.jog_arm()
+        self.fsm.e_jog()
 
     def button_up_callback(self, _gpio, _level, _tick):
-        self.fsm.stop_jog()
+        self.fsm.e_stop_jog()
 
     def setup_hid_callbacks(self):
         self.gpios.set_glitch_filter(SPARKFUN_BUTTON_GPIO, 1000)
