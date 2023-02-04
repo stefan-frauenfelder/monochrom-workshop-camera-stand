@@ -69,6 +69,28 @@
          <string>Joystick calibration</string>
         </property>
        </widget>
+       <widget class="QPushButton" name="estop_button">
+        <property name="geometry">
+         <rect>
+          <x>129</x>
+          <y>381</y>
+          <width>91</width>
+          <height>71</height>
+         </rect>
+        </property>
+        <property name="font">
+         <font>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>EMERGENCY
+STOP</string>
+        </property>
+        <property name="flat">
+         <bool>false</bool>
+        </property>
+       </widget>
       </widget>
       <widget class="QWidget" name="jog_tab">
        <attribute name="title">
