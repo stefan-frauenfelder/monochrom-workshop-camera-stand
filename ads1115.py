@@ -1,4 +1,3 @@
-
 import smbus
 import time
 
@@ -94,7 +93,6 @@ ADS1115_REG_CONFIG_CQUE_4CONV = 0x02
 ADS1115_REG_CONFIG_CQUE_NONE = 0x03
 
 
-
 class ADS1115:
 
     def __init__(self, range=None):
@@ -161,4 +159,3 @@ class ADS1115:
         self.set_single()
         time.sleep(0.02)
         return float(self.read_value()) / 1000
-

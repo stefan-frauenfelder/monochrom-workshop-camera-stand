@@ -1,7 +1,6 @@
 import time
 import threading
 import math
-import RPi.GPIO as GPIO
 from enum import Enum
 
 import sequent_ports

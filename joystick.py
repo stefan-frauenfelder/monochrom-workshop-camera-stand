@@ -7,6 +7,7 @@ from ads1115 import ADS1115
 # create an adc to be used by multiple joysticks, not sure this works
 adc_from_outside = ADS1115()
 
+
 class Joystick:
 
     def __init__(self, adc_ports=(0, 1)):
@@ -95,7 +96,6 @@ class Joystick:
         initial_neutral = self.get_voltages()
         print('Sampled.')
         time.sleep(1)
-
 
         print('Now move the Joystick to all its limits in all directions...')
         for counter in range(4):

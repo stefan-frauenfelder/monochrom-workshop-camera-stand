@@ -1,14 +1,4 @@
-# Rotary encoder class based on pigpio library
-# version: 0.2.5
-
-try:
-    import pigpio
-except ModuleNotFoundError:
-    import sys
-    from unittest.mock import MagicMock
-    sys.modules['pigpio'] = MagicMock()
-
-
+import pigpio
 import time
 
 # States

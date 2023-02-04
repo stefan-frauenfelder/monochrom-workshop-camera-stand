@@ -1,18 +1,13 @@
 from statemachine import StateMachine, State
 import threading
 
+from motion_control import motion_controller
+
 
 class CameraMotionControlFsm(StateMachine):
 
-    def __init__(self, coordinator):
+    def __init__(self):
         super().__init__()
-        self._coordinator = coordinator
-        self._view = None
-
-
-
-    def set_view(self, view):
-        self._view = view
 
     # definition of states
     s_initial = State('Initial', initial=True)
@@ -56,25 +51,20 @@ class CameraMotionControlFsm(StateMachine):
     #     )
 
     def on_e_initialize(self):
-        self._coordinator.initialize_steppers()
-
-    def on_enter_s_joystick_calibration(self):
-        # start the calibration method
-        self._coordinator.e_calibrate_joystick()
-        # return to s_initial state
-        self.e_joystick_calibrated()
+        motion_controller.initialize_steppers()
 
     def on_e_home(self):
-        self._coordinator.homing_run()
-
-    def on_enter_s_initialized(self):
-        self._view.homing_button.setEnabled(True)
+        motion_controller.homing_run()
 
     def on_enter_s_jogging_arm(self):
-        self._coordinator.start_jogging('arm')
+        motion_controller.start_jogging('arm')
 
     def on_exit_s_jogging(self):
-        self._coordinator.stop_jogging()
+        motion_controller.stop_jogging()
 
     def on_e_exit(self):
-        self._coordinator.shutdown()
+        motion_controller.shutdown()
+
+
+# create the finite state machine
+fsm = CameraMotionControlFsm()
