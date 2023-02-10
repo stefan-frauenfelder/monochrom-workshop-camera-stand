@@ -1,9 +1,6 @@
-import smbus
 import time
 import pigpio
 from bitstring import BitArray
-
-# bus = smbus.SMBus(1)    # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
 
 DEVICE_ADDRESS = 0x20  # 7 bit address (will be left shifted to add the read write bit)
 
@@ -24,9 +21,9 @@ OPTO_STACK_LEVEL = 0x02
 
 class SequentPorts():
 
-    def __init__(self, interrupt_gpio_channel):
+    def __init__(self, sm_bus, interrupt_gpio_channel):
 
-        self._sm_bus = smbus.SMBus(1)     # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
+        self._sm_bus = sm_bus
         time.sleep(1)             # sm_bus needs to settle
 
         gpio = pigpio.pi()

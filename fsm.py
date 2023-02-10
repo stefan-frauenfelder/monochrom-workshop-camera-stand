@@ -18,7 +18,8 @@ class MechanicsFsm(StateMachine):
     s_eshutdown = State('Emergency Shutdown')
     # s_final = State('Final', final=True)
 
-    s_jogging = State("Jogging")
+    s_jogging = State('Jogging')
+    s_quick_test = State('Quick Test')
 
     # moving_to_start = State('Moving to start position')
     # ready = State('Ready for target move')
@@ -31,6 +32,7 @@ class MechanicsFsm(StateMachine):
     e_initialized = s_initializing.to(s_initialized)
     e_home = s_initialized.to(s_homing)
     e_homed = s_homing.to(s_idle)
+    e_quick_test = s_idle.to(s_quick_test) | s_quick_test.to(s_idle)
 
     e_eshutdown = s_initial.to(s_eshutdown) | s_idle.to(s_eshutdown) | s_initialized.to(s_eshutdown) | s_initializing.to(s_eshutdown) | s_homing.to(s_eshutdown)
 
@@ -61,6 +63,12 @@ class MechanicsFsm(StateMachine):
     def on_enter_s_eshutdown(self):
         print(f'\033[91mWARNING: Emergency shutdown sequence triggered!')
         motion_controller.emergency_shutdown()
+
+    def on_enter_s_quick_test(self):
+        motion_controller.start_joysticking()
+
+    def on_exit_s_quick_test(self):
+        motion_controller.stop_joysticking()
 
 
 # create the finite state machine

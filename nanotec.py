@@ -704,6 +704,18 @@ class FiniteStepper(OrientedStepper):
         return self._far_soft_limit_location - self._safety_margin
     far_limit = property(get_far_limit, None)
 
+    def set_limited_speed(self, speed):
+        k = 1.0
+        limited_speed = 0.0
+        if speed > 0:
+            distance = self.far_limit - self.limited_position
+            limited_speed = min(k * distance, speed)
+        elif speed < 0:
+            distance = self.near_limit - self.limited_position
+            limited_speed = max(k * distance, speed)
+        self.signed_speed = limited_speed
+    limited_speed = property(None, set_limited_speed)
+
 
 class LocatedStepper(FiniteStepper):
 

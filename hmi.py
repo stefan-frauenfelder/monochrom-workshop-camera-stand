@@ -4,9 +4,11 @@ import pigpio
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
+import hardware
 from hardware import wheel
 from hardware import cam
 from hardware import gpio
+from hardware import io_expander
 
 from fsm import mechanics_fsm
 
@@ -44,15 +46,21 @@ class View(QtWidgets.QMainWindow):
 
         self.homing_button.clicked.connect(mechanics_fsm.e_home)
 
-        # self.joystick_calibration_button.clicked.connect(mechanics_fsm.e_calibrate_joystick)
+        self.joystick_calibration_button.clicked.connect(self.quick_test)
 
         self.estop_button.clicked.connect(mechanics_fsm.e_eshutdown)
 
     def closeEvent(self, event):
         print("Window close command issued, passing e_exit event to FSM.")
-        mechanics_fsm.e_exit()
-        # close the window and e_exit the application
+        mechanics_fsm.e_eshutdown()
+        # close the window and exit the application
         event.accept()
+
+    def quick_test(self):
+        while True:
+            value = io_expander.gpio_digital_read(gpio=io_expander.eGPIO_TOTAL)
+            print(value)
+            time.sleep(0.5)
 
     def update(self):
 

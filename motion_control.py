@@ -5,18 +5,17 @@ import serial
 import json
 import pigpio
 
-import sequent_ports
+
 
 from nanotec import *
 from motion_math import *
 from hardware import wheel as global_wheel
+from hardware import joystick
+from hardware import sequent_ports
 
 default_linear_speed = 0.1
 default_rotor_speed = 0.1
 default_pan_tilt_speed = 0.8
-
-# port extension cards
-SEQUENT_INTERRUPT_GPIO = 5
 
 
 class MotionController:
@@ -41,9 +40,10 @@ class MotionController:
         self._wheel = global_wheel
 
         # setup the hardware opto-isolated input and relay outputs cards
-        self.io_card = sequent_ports.SequentPorts(SEQUENT_INTERRUPT_GPIO)
+        self.io_card = sequent_ports
         # create a couple of events which manage flags that allow to abort threads
         self._jogging_flag = threading.Event()
+        self._joysticking_flag = threading.Event()
 
     def set_jogging_axis(self, axis_name):
         self._jogging_axis = self._axes[axis_name]
@@ -147,6 +147,17 @@ class MotionController:
     def stop_jogging(self):
         # clearing the jogging flag will cause the previously started jogging thread to return
         self._jogging_flag.clear()
+
+    def start_joysticking(self):
+        # set the joysticking flag to true. It is checked in the while loop of joysticking
+        self._joysticking_flag.set()
+        # create a new thread and start it
+        thread = threading.Thread(target=lambda: self.joystick_control(flag=self._joysticking_flag))
+        thread.start()
+
+    def stop_joysticking(self):
+        # clearing the joysticking flag will cause the previously started joysticking thread to return
+        self._joysticking_flag.clear()
 
     def disarm_all(self):
         # iterate through _axes
@@ -454,6 +465,39 @@ class MotionController:
 
         # if you are here, flag was cleared from outside
         axis.stop()
+
+    def joystick_control(self, flag):
+
+        axes = [self._axes['arm'], self._axes['lift'], self._axes['rotor']]
+
+        for axis in axes:
+            axis.mode = "speed_mode"
+            axis.ramp_type = "jerkfree"
+            axis.jerk = 20
+
+        stopped = [True, True, True]
+
+        while flag.is_set():
+            # read the joystick
+            position_tuple = joystick.get_position()
+            joystick_position = [position_tuple[1], position_tuple[0], 0.0]
+
+            for i in range(3):
+                if joystick_position[i]:  # joystick position demands movement
+                    # set speed from joystick position
+                    axes[i].limited_speed = joystick_position[i] * default_linear_speed
+
+                    if stopped[i]:  # was stopped before
+                        axes[i].run()  # start again
+                        stopped[i] = False
+                else:  # joystick position is neutral
+                    if not stopped[i]:  # was moving before
+                        axes[i].stop()  # stop
+                        stopped[i] = True
+
+        # if you are here, flag was cleared from outside
+        for i in range(3):
+            axes[i].stop()
 
 
 # create the one motion controller which will be imported by other modules
