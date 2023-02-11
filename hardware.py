@@ -7,17 +7,24 @@ import graycode
 from smbus2 import SMBus
 from bitstring import BitArray
 
+
+
+import spidev
+import random
+
 from joystick import Joystick
 from zcame2 import ZCamE2
 from rotary import RotaryEncoder
 from ch423 import Ch423
 from sequent_ports import SequentPorts
+from display import Display
 
 # The digital pins of raspberry pi in BCM code
 
 # Jog wheel
 JOG_WHEEL_A_GPIO = 20
 JOG_WHEEL_B_GPIO = 21
+
 
 # connected to the INT pin (GPO15) of the CH423 I/O expander
 IO_EXPANDER_INT_PIN = 26
@@ -44,6 +51,9 @@ cam = ZCamE2()
 
 # create a joystick
 joystick = Joystick()
+
+display = Display()
+display.demo()
 
 # set up the hardware opto-isolated input and relay outputs cards
 sequent_ports = SequentPorts(sm_bus, SEQUENT_INTERRUPT_GPIO)
