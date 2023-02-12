@@ -5,8 +5,6 @@ import serial
 import json
 import pigpio
 
-
-
 from nanotec import *
 from motion_math import *
 from hardware import wheel as global_wheel
@@ -39,8 +37,9 @@ class MotionController:
 
         self._wheel = global_wheel
 
-        # setup the hardware opto-isolated input and relay outputs cards
+        # set up the hardware opto-isolated input and relay outputs cards
         self.io_card = sequent_ports
+
         # create a couple of events which manage flags that allow to abort threads
         self._jogging_flag = threading.Event()
         self._joysticking_flag = threading.Event()

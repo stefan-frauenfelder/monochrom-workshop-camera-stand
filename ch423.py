@@ -118,8 +118,11 @@ class Ch423:
     ARGS_BIT_OD_EN = 4
     ARGS_BIT_SLEEP = 6
 
-    def __init__(self, sm_bus):
-        self._bus = sm_bus
+    def __init__(self):
+
+        # Get I2C bus
+        self._bus = smbus.SMBus(3)
+
         self._args = 0
         self._mode = [0] * 8
         self._cbs = [0] * 8

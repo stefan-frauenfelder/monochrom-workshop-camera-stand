@@ -1,8 +1,6 @@
 import smbus
 import time
 
-# Get I2C bus
-bus = smbus.SMBus(1)
 
 # I2C address of the device
 ADS1115_IIC_ADDRESS0 = 0x48
@@ -106,6 +104,9 @@ class ADS1115:
         self.coefficient_from_gain(self.gain)
         self.channel = 0
 
+        # Get I2C bus
+        self._bus = smbus.SMBus(3)
+
     def coefficient_from_gain(self, gain):
         if gain == ADS1115_REG_CONFIG_PGA_6_144V:
             self.coefficient = 0.1875
@@ -145,7 +146,7 @@ class ADS1115:
 
     def read_value(self):
         # read from bus
-        data = bus.read_i2c_block_data(self.address, ADS1115_REG_POINTER_CONVERT, 2)
+        data = self._bus.read_i2c_block_data(self.address, ADS1115_REG_POINTER_CONVERT, 2)
         # Convert the data
         raw_adc = data[0] * 256 + data[1]
         if raw_adc > 32767:

@@ -8,7 +8,7 @@ import hardware
 from hardware import wheel
 from hardware import cam
 from hardware import gpio
-from hardware import io_expander
+# from hardware import io_expander
 
 from fsm import mechanics_fsm
 
@@ -58,8 +58,8 @@ class View(QtWidgets.QMainWindow):
 
     def quick_test(self):
         while True:
-            value = io_expander.gpio_digital_read(gpio=io_expander.eGPIO_TOTAL)
-            print(value)
+            # value = io_expander.gpio_digital_read(gpio=io_expander.eGPIO_TOTAL)
+            # print(value)
             time.sleep(0.5)
 
     def update(self):
