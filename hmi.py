@@ -10,7 +10,7 @@ from hardware import cam
 from hardware import gpio
 # from hardware import io_expander
 
-from fsm import mechanics_fsm
+from mechanics_fsm import mechanics_fsm
 
 
 class StateObserver(object):
