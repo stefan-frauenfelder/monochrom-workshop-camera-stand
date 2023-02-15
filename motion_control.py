@@ -111,7 +111,7 @@ class MotionController:
         self._axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
         self._axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
 
-    def activate_joystick_mode(self):
+    def activate_all_steppers_hardware_analog_joystick_mode(self):
         # limit speeds for joystick mode
         self._axes['arm'].speed = 0.05
         self._axes['lift'].speed = 0.05
@@ -147,11 +147,11 @@ class MotionController:
         # clearing the jogging flag will cause the previously started jogging thread to return
         self._jogging_flag.clear()
 
-    def start_joysticking(self):
+    def start_joysticking(self, axes_set):
         # set the joysticking flag to true. It is checked in the while loop of joysticking
         self._joysticking_flag.set()
         # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.joystick_control(flag=self._joysticking_flag))
+        thread = threading.Thread(target=lambda: self.joystick_control(flag=self._joysticking_flag, axes_set=axes_set))
         thread.start()
 
     def stop_joysticking(self):
@@ -465,26 +465,34 @@ class MotionController:
         # if you are here, flag was cleared from outside
         axis.stop()
 
-    def joystick_control(self, flag):
+    def joystick_control(self, flag, axes_set):
 
-        axes = [self._axes['arm'], self._axes['lift'], self._axes['rotor']]
+        if axes_set == 'arm-lift-rotor':
+            axes = [self._axes['arm'], self._axes['lift'], self._axes['rotor']]
+        elif axes_set == 'pan-tilt':
+            axes = [self._axes['pan'], self._axes['tilt']]
+        else:
+            raise ValueError('Not a valid axes set. Valid is arm-lift-rotor or pan-tilt.')
 
         for axis in axes:
             axis.mode = "speed_mode"
             axis.ramp_type = "jerkfree"
             axis.jerk = 20
 
-        stopped = [True, True, True]
+        # every axis needs its own stopped flag
+        stopped = []
+        for i in range(len(axes)):
+            stopped.append(True)
 
         while flag.is_set():
             # read the joystick
             position_tuple = joystick.get_position()
             joystick_position = [position_tuple[1], position_tuple[0], 0.0]
 
-            for i in range(3):
-                if joystick_position[i]:  # joystick position demands movement
+            for i in range(len(axes)):
+                if abs(joystick_position[i]) > 0:  # joystick position demands movement
                     # set speed from joystick position
-                    axes[i].limited_speed = joystick_position[i] * default_linear_speed
+                    axes[i].limited_speed = joystick_position[i] * axes[i].joystick_speed
 
                     if stopped[i]:  # was stopped before
                         axes[i].run()  # start again
@@ -495,7 +503,7 @@ class MotionController:
                         stopped[i] = True
 
         # if you are here, flag was cleared from outside
-        for i in range(3):
+        for i in range(len(axes)):
             axes[i].stop()
 
 

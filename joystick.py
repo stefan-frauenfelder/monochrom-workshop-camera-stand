@@ -16,7 +16,7 @@ class Joystick:
         self.adc_ports = adc_ports
         self.x = adc_ports[0]
         self.y = adc_ports[1]
-        self.dead_zone = 0.01  # what portion of the whole range is still considered neutral
+        self.dead_zone = 0.05  # what portion of the whole range is still considered neutral
 
         try:
             self.calibration = json.loads(open("joystick_calibration.json").read())
@@ -56,12 +56,12 @@ class Joystick:
 
                 # check for exactly neutral
                 if value == neutral:
-                    output = 0.0
+                    output = 0
                 # check for lower zone
                 elif value < neutral:
                     # check for lower dead zone
                     if value > neutral - half_dead_zone:
-                        output = 0.0
+                        output = 0
                     # needs to be lower active zone
                     else:
                         lower_active_span = (neutral - half_dead_zone) - minimum
@@ -70,7 +70,7 @@ class Joystick:
                 else:
                     # check for upper dead zone
                     if value < neutral + half_dead_zone:
-                        output = 0.0
+                        output = 0
                     # needs to be upper active zone
                     else:
                         upper_active_span = maximum - (neutral + half_dead_zone)

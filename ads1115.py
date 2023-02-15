@@ -142,7 +142,7 @@ class ADS1115:
                 ADS1115_REG_CONFIG_OS_SINGLE | ADS1115_REG_CONFIG_MUX_SINGLE_3 | self.gain | ADS1115_REG_CONFIG_MODE_CONTIN,
                 ADS1115_REG_CONFIG_DR_128SPS | ADS1115_REG_CONFIG_CQUE_NONE]
 
-        bus.write_i2c_block_data(self.address, ADS1115_REG_POINTER_CONFIG, config_register)
+        self._bus.write_i2c_block_data(self.address, ADS1115_REG_POINTER_CONFIG, config_register)
 
     def read_value(self):
         # read from bus

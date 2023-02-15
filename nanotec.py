@@ -278,6 +278,7 @@ class PhysicalStepper(NanotecStepper):
 
         self._si_unit_per_motor_revolution = self.stepper_config['siUnitPerMotorRevolution']
         self._maximum_speed = self.stepper_config['maximumSpeed']
+        self.joystick_speed = self.stepper_config['joystickSpeed']
 
     def travel(self, value):
         # convert from physical travel in meters to (micro) steps of the motor

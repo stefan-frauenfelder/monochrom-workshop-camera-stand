@@ -53,27 +53,28 @@
          </rect>
         </property>
         <property name="text">
-         <string>Run homing sequence</string>
+         <string>Run Homing Sequence</string>
         </property>
        </widget>
        <widget class="QPushButton" name="joystick_calibration_button">
         <property name="geometry">
          <rect>
-          <x>80</x>
-          <y>250</y>
-          <width>201</width>
+          <x>10</x>
+          <y>430</y>
+          <width>81</width>
           <height>61</height>
          </rect>
         </property>
         <property name="text">
-         <string>Joystick calibration</string>
+         <string>Joystick
+Calibration</string>
         </property>
        </widget>
        <widget class="QPushButton" name="estop_button">
         <property name="geometry">
          <rect>
-          <x>129</x>
-          <y>381</y>
+          <x>130</x>
+          <y>380</y>
           <width>91</width>
           <height>71</height>
          </rect>
@@ -89,6 +90,60 @@ STOP</string>
         </property>
         <property name="flat">
          <bool>false</bool>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="arm_lift_joystick_mode_button">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>190</y>
+          <width>121</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Arm &amp; Lift
+Joystick Mode</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="zero_rotor_button">
+        <property name="geometry">
+         <rect>
+          <x>180</x>
+          <y>190</y>
+          <width>121</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Zero Rotor</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="pan_tilt_joystick_mode_button">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>260</y>
+          <width>121</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Pan &amp; Tilt
+Joystick Mode</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="quick_test_button">
+        <property name="geometry">
+         <rect>
+          <x>260</x>
+          <y>430</y>
+          <width>91</width>
+          <height>61</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Quick Test</string>
         </property>
        </widget>
       </widget>

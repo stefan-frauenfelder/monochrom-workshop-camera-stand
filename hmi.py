@@ -12,11 +12,6 @@ from hardware import gpio
 
 from fsm import mechanics_fsm
 
-# Switches
-ENTER_SW_GPIO = 17
-
-SPARKFUN_BUTTON_GPIO = 21
-
 
 class StateObserver(object):
     def __init__(self, name, owner):
@@ -46,9 +41,10 @@ class View(QtWidgets.QMainWindow):
 
         self.homing_button.clicked.connect(mechanics_fsm.e_home)
 
+        # utility buttons
         self.joystick_calibration_button.clicked.connect(self.quick_test)
-
-        self.estop_button.clicked.connect(mechanics_fsm.e_eshutdown)
+        self.quick_test_button.clicked.connect(self.quick_test)
+        self.estop_button.clicked.connect(mechanics_fsm.e_emergency_shutdown)
 
     def closeEvent(self, event):
         print("Window close command issued, passing e_exit event to FSM.")
@@ -57,10 +53,7 @@ class View(QtWidgets.QMainWindow):
         event.accept()
 
     def quick_test(self):
-        while True:
-            # value = io_expander.gpio_digital_read(gpio=io_expander.eGPIO_TOTAL)
-            # print(value)
-            time.sleep(0.5)
+        pass
 
     def update(self):
 
@@ -73,7 +66,7 @@ class View(QtWidgets.QMainWindow):
 class Controller:
 
     def __init__(self):
-        self.setup_hid_callbacks()
+        pass
 
     def rotary_callback(self, counter):
         print('Counter value: ', counter)
@@ -83,10 +76,4 @@ class Controller:
 
     def button_up_callback(self, _gpio, _level, _tick):
         mechanics_fsm.e_stop_jog()
-
-    def setup_hid_callbacks(self):
-        gpio.set_glitch_filter(SPARKFUN_BUTTON_GPIO, 1000)
-        gpio.set_pull_up_down(SPARKFUN_BUTTON_GPIO, pigpio.PUD_UP)
-        gpio.callback(SPARKFUN_BUTTON_GPIO, pigpio.FALLING_EDGE, self.button_down_callback)
-        gpio.callback(SPARKFUN_BUTTON_GPIO, pigpio.RISING_EDGE, self.button_up_callback)
 

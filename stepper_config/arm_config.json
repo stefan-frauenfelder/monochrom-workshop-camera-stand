@@ -12,5 +12,6 @@
     "approximateSafeTravel": 0.6,
     "absolutePositionOffset": 0.157,
     "nearSoftLimitPort": 1,
-    "farSoftLimitPort": 0
+    "farSoftLimitPort": 0,
+    "joystickSpeed": 0.3
 }
