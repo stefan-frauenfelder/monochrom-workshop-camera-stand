@@ -7,9 +7,8 @@ import pigpio
 
 from nanotec import *
 from motion_math import *
-from hardware import wheel as global_wheel
-from hardware import joystick
-from hardware import sequent_ports
+
+from hardware import hardware_manager
 
 default_linear_speed = 0.1
 default_rotor_speed = 0.1
@@ -35,10 +34,10 @@ class MotionController:
         self._axes = None
         self._jogging_axis = None
 
-        self._wheel = global_wheel
+        self._wheel = hardware_manager.wheel
 
         # set up the hardware opto-isolated input and relay outputs cards
-        self.io_card = sequent_ports
+        self.io_card = hardware_manager.sequent_ports
 
         # create a couple of events which manage flags that allow to abort threads
         self._jogging_flag = threading.Event()
@@ -486,7 +485,7 @@ class MotionController:
 
         while flag.is_set():
             # read the joystick
-            position_tuple = joystick.get_position()
+            position_tuple = hardware_manager.joystick.get_position()
             joystick_position = [position_tuple[1], position_tuple[0], 0.0]
 
             for i in range(len(axes)):

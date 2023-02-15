@@ -4,12 +4,7 @@ import pigpio
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
-import hardware
-from hardware import wheel
-from hardware import cam
-from hardware import gpio
-# from hardware import io_expander
-
+from hardware import hardware_manager
 from mechanics_fsm import mechanics_fsm
 
 
@@ -67,9 +62,6 @@ class Controller:
 
     def __init__(self):
         pass
-
-    def rotary_callback(self, counter):
-        print('Counter value: ', counter)
 
     def button_down_callback(self, _gpio, _level, _tick):
         mechanics_fsm.e_jog()
