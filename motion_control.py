@@ -41,10 +41,23 @@ class MotionController:
 
         # create a couple of events which manage flags that allow to abort threads
         self._jogging_flag = threading.Event()
-        self._joysticking_flag = threading.Event()
+        self._joystick_flag = threading.Event()
+
+        self._joystick_axes_set = 'arm-lift-rotor'
 
     def set_jogging_axis(self, axis_name):
         self._jogging_axis = self._axes[axis_name]
+
+    def toggle_joystick_axes_set(self):
+        # stop joystick to switch axes set
+        self.stop_joystick_control()
+        # switch axes set
+        if self._joystick_axes_set == 'arm-lift-rotor':
+            self._joystick_axes_set = 'pan-tilt'
+        else:
+            self._joystick_axes_set = 'arm-lift-rotor'
+        # start again
+        self.start_joystick_control()
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
@@ -146,16 +159,16 @@ class MotionController:
         # clearing the jogging flag will cause the previously started jogging thread to return
         self._jogging_flag.clear()
 
-    def start_joysticking(self, axes_set):
-        # set the joysticking flag to true. It is checked in the while loop of joysticking
-        self._joysticking_flag.set()
+    def start_joystick_control(self):
+        # set the joystick flag to true. It is checked in the while loop of joystick control
+        self._joystick_flag.set()
         # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.joystick_control(flag=self._joysticking_flag, axes_set=axes_set))
+        thread = threading.Thread(target=lambda: self.joystick_control(flag=self._joystick_flag))
         thread.start()
 
-    def stop_joysticking(self):
-        # clearing the joysticking flag will cause the previously started joysticking thread to return
-        self._joysticking_flag.clear()
+    def stop_joystick_control(self):
+        # clearing the joystick flag will cause the previously started joystick thread to return
+        self._joystick_flag.clear()
 
     def disarm_all(self):
         # iterate through _axes
@@ -464,11 +477,11 @@ class MotionController:
         # if you are here, flag was cleared from outside
         axis.stop()
 
-    def joystick_control(self, flag, axes_set):
+    def joystick_control(self, flag):
 
-        if axes_set == 'arm-lift-rotor':
+        if self._joystick_axes_set == 'arm-lift-rotor':
             axes = [self._axes['arm'], self._axes['lift'], self._axes['rotor']]
-        elif axes_set == 'pan-tilt':
+        elif self._joystick_axes_set == 'pan-tilt':
             axes = [self._axes['pan'], self._axes['tilt']]
         else:
             raise ValueError('Not a valid axes set. Valid is arm-lift-rotor or pan-tilt.')

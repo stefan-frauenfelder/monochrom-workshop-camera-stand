@@ -85,10 +85,10 @@ class MechanicsFsm(StateMachine):
         motion_controller.stop_jogging()
 
     def on_enter_s_joystick_control(self):
-        motion_controller.start_joysticking()
+        motion_controller.start_joystick_control()
 
     def on_exit_s_joystick_control(self):
-        motion_controller.stop_joysticking()
+        motion_controller.stop_joystick_control()
 
     def on_enter_s_emergency_stop(self):
         print(f'\033[91mWARNING: Emergency stop triggered!')
