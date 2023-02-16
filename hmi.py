@@ -6,6 +6,7 @@ from PyQt5 import uic
 
 from hardware import hardware_manager
 from mechanics_fsm import mechanics_fsm
+from motion_control import motion_controller
 
 
 class StateObserver(object):
@@ -61,11 +62,36 @@ class View(QtWidgets.QMainWindow):
 class Controller:
 
     def __init__(self):
-        pass
 
-    def button_down_callback(self, _gpio, _level, _tick):
-        mechanics_fsm.e_jog()
+        self.mode = 0
 
-    def button_up_callback(self, _gpio, _level, _tick):
-        mechanics_fsm.e_stop_jog()
+        # create an observer which can observe an FSM to observe the mechanics FSM
+        mechanics_fsm_observer = StateObserver('controllers_mechanics_observer', self)
+        # add the observer to the mechanics FSM, it will call Controller's update method on every state change
+        mechanics_fsm.add_observer(mechanics_fsm_observer)
+
+        hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
+        hardware_manager.rgb_button_callbacks.append(self.cb_joystick_button_change)
+
+    def cb_rotary_selector_switch(self, new_mode):
+        print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
+        if new_mode == 0:
+            mechanics_fsm.e_joystick_control()
+        elif self.mode == 0:
+            mechanics_fsm.e_idle()
+        # update
+        self.mode = new_mode
+
+    def cb_joystick_button_change(self, value):
+        # only if button is pressed
+        if value:
+            # different behavior depending on current mode
+            if self.mode == 0:  # joystick
+                motion_controller.toggle_joystick_axes_set()
+                print('Toggled joystick axes.')
+
+
+    def update(self):
+
+
 

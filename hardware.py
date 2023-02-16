@@ -39,6 +39,7 @@ class HardwareManager:
 
         # create a joystick
         self.joystick = Joystick()
+        self.joystick_button_callbacks = []
 
         # create the small, external display on the controller
         self.display = Display()
@@ -51,6 +52,8 @@ class HardwareManager:
         self.rgb_button_light = RgbButton()
         self.rgb_button_light.begin()
         self.rgb_button_light.set_rgb_color(RgbButton.e_blue)
+
+        self.rgb_button_callbacks = []
 
         # create the I/O-expander
         self.io_expander = Ch423()
@@ -65,6 +68,7 @@ class HardwareManager:
 
         # maintain a state of the rotary selector value for external access
         self.rotary_selector_value = 0
+        self.rotary_selector_callbacks = []
 
         # call the general update function once at startup
         self.io_expander_general_callback(0, 0, 0)
@@ -77,7 +81,7 @@ class HardwareManager:
         # check what changed using bitwise xor
         changed_bits = self.io_expander_values ^ new_values
         # update the state
-        io_expander_values = new_values
+        self.io_expander_values = new_values
         # call the updaters
         self.update_rotary_selector_value(values=new_values, changed_bits=changed_bits)
         self.update_joystick_button(values=new_values, changed_bits=changed_bits)
@@ -102,36 +106,36 @@ class HardwareManager:
 
     def cb_rotary_selector_switched(self, value):
         print('Hardware: rotary selector is switched to  ' + str(value) + '.')
+        for callback in self.rotary_selector_callbacks:
+            callback(value)
 
     def update_joystick_button(self, values, changed_bits):
         # only update if the joystick button bit changed
         if changed_bits & 0x10:
             joystick_button_up = values & 0x10  # zero means pressed
             if joystick_button_up:
-                self.cb_joystick_button_released()
+                self.cb_joystick_button(0)
             else:
-                self.cb_joystick_button_pressed()
+                self.cb_joystick_button(1)
 
     def update_rgb_button(self, values, changed_bits):
         # only update if the rgb button bit changed
         if changed_bits & 0x20:
             button_down = values & 0x20  # one means pressed
             if button_down:
-                self.cb_rgb_button_pressed()
+                self.cb_rgb_button(1)
             else:
-                self.cb_rgb_button_released()
+                self.cb_rgb_button(0)
 
-    def cb_joystick_button_pressed(self):
+    def cb_joystick_button(self, value):
         print('Hardware: Joystick button is pressed.')
+        for callback in self.joystick_button_callbacks:
+            callback(value)
 
-    def cb_rgb_button_pressed(self):
+    def cb_rgb_button(self, value):
         print('Hardware: RGB button is pressed.')
-
-    def cb_joystick_button_released(self):
-        print('Hardware: Joystick button is released.')
-
-    def cb_rgb_button_released(self):
-        print('Hardware: RGB button is released.')
+        for callback in self.rgb_button_callbacks:
+            callback(value)
 
     def rotary_encoder_callback(self, counter):
         print('Counter value: ', counter)
