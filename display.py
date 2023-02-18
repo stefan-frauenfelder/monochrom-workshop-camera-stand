@@ -25,7 +25,7 @@ class Display:
             width=WIDTH,
             height=HEIGHT,
             rotation=180,
-            spi_speed_hz=60 * 1000 * 1000
+            spi_speed_hz=10 * 1000 * 1000  # was 60 *
         )
 
     def demo(self):

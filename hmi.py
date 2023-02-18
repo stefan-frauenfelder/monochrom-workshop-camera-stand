@@ -5,18 +5,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
 from hardware import hardware_manager
-from mechanics_fsm import mechanics_fsm
+from hsm import hsm
 from motion_control import motion_controller
-
-
-class StateObserver(object):
-    def __init__(self, name, owner):
-        self.name = name
-        self.owner = owner
-
-    def on_enter_state(self, target, event):
-        print(f'Mechanics FSM entering state {target.name} triggered by {event}')
-        self.owner.update()
 
 
 class View(QtWidgets.QMainWindow):
@@ -28,23 +18,21 @@ class View(QtWidgets.QMainWindow):
 
         self.setWindowTitle("Camera Motion Control")
 
-        # create an observer which can observe an FSM to observe the mechanics FSM
-        mechanics_fsm_observer = StateObserver('views_mechanics_observer', self)
-        # add the observer to the mechanics FSM, it will call View's update method on every state change
-        mechanics_fsm.add_observer(mechanics_fsm_observer)
+        # add a callback to the HSN to be notified about state changes
+        hsm.state_changed_callbacks.append(self.update)
 
-        self.initialize_button.clicked.connect(mechanics_fsm.e_initialize)
+        self.initialize_button.clicked.connect(hsm.initialize)
 
-        self.homing_button.clicked.connect(mechanics_fsm.e_home)
+        self.homing_button.clicked.connect(hsm.home)
 
         # utility buttons
         self.joystick_calibration_button.clicked.connect(self.quick_test)
         self.quick_test_button.clicked.connect(self.quick_test)
-        self.estop_button.clicked.connect(mechanics_fsm.e_emergency_shutdown)
+        self.estop_button.clicked.connect(hsm.emergency_shutdown)
 
     def closeEvent(self, event):
         print("Window close command issued, passing e_exit event to FSM.")
-        mechanics_fsm.e_eshutdown()
+        hsm.emergency_shutdown()
         # close the window and exit the application
         event.accept()
 
@@ -52,8 +40,7 @@ class View(QtWidgets.QMainWindow):
         pass
 
     def update(self):
-
-        if mechanics_fsm.current_state.name == 'Initialized':
+        if hsm.is_initialized():
             self.homing_button.setEnabled(True)
         else:
             self.homing_button.setEnabled(False)
@@ -65,10 +52,8 @@ class Controller:
 
         self.mode = 0
 
-        # create an observer which can observe an FSM to observe the mechanics FSM
-        mechanics_fsm_observer = StateObserver('controllers_mechanics_observer', self)
-        # add the observer to the mechanics FSM, it will call Controller's update method on every state change
-        mechanics_fsm.add_observer(mechanics_fsm_observer)
+        # add a callback to the HSN to be notified about state changes
+        hsm.state_changed_callbacks.append(self.update())
 
         hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
         hardware_manager.rgb_button_callbacks.append(self.cb_joystick_button_change)
@@ -76,9 +61,9 @@ class Controller:
     def cb_rotary_selector_switch(self, new_mode):
         print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
         if new_mode == 0:
-            mechanics_fsm.e_joystick_control()
+            hsm.e_joystick_control()
         elif self.mode == 0:
-            mechanics_fsm.e_idle()
+            hsm.e_idle()
         # update
         self.mode = new_mode
 
@@ -90,8 +75,5 @@ class Controller:
                 motion_controller.toggle_joystick_axes_set()
                 print('Toggled joystick axes.')
 
-
     def update(self):
-
-
-
+        pass
