@@ -666,10 +666,13 @@ class FiniteStepper(OrientedStepper):
         print('Safe travel of ' + self.name + ' axis is ' + str(self._safe_travel_range) + '.')
         print('Soft limit guard of ' + self.name + ' axis activated.')
 
-    def set_fake_rotational_stepper_limits(self, limit):
+    def set_fake_rotational_stepper_limits(self):
 
-        self._near_soft_limit_location = - limit
-        self._far_soft_limit_location = limit
+        near_fake_limit_location = self.stepper_config['nearFakeLimitLocation']
+        far_fake_limit_location = self.stepper_config['farFakeLimitLocation']
+
+        self._near_soft_limit_location = near_fake_limit_location
+        self._far_soft_limit_location = far_fake_limit_location
         self._safety_margin = math.pi / 18  # 10°
         self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
 

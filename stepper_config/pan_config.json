@@ -13,5 +13,7 @@
     "absolutePositionOffset": 0.0,
     "nearSoftLimitPort": null,
     "farSoftLimitPort": null,
-    "joystickSpeed": 1
+    "joystickSpeed": 1,
+    "nearFakeLimitLocation": -1.8,
+    "farFakeLimitLocation": 1.8
 }

@@ -121,9 +121,9 @@ class MotionController:
         find_origin_pan_thread.join()
         find_origin_tilt_thread.join()
         # set fake limits because there are no limit switches yet
-        self._axes['pan'].set_fake_rotational_stepper_limits(math.pi)
-        self._axes['tilt'].set_fake_rotational_stepper_limits(math.pi)
-        self._axes['rotor'].set_fake_rotational_stepper_limits(math.pi / 4)
+        self._axes['pan'].set_fake_rotational_stepper_limits()
+        self._axes['tilt'].set_fake_rotational_stepper_limits()
+        self._axes['rotor'].set_fake_rotational_stepper_limits()
 
     def activate_all_steppers_hardware_analog_joystick_mode(self):
         # limit speeds for joystick mode
