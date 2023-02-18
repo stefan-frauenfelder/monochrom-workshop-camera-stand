@@ -2,12 +2,39 @@ from statemachine import StateMachine, State
 
 from motion_control import motion_controller
 
-from transitions import Machine
+from transitions.extensions import HierarchicalMachine
 
 
 class Hsm(object):
 
-    states = ['uninitialized', 'initializing', 'initialized', 'homing', 'operational', 'emergencyStop', 'emergencyShutdown']
+    states = [
+        'uninitialized',
+        'initializing',
+        'initialized',
+        'homing',
+        'emergencyStop',
+        'emergencyShutdown',
+        {
+            'name': 'operational',
+            'initial': 'joystickControl',
+            'children': [
+                'joystickControl',
+                'jogControl',
+                {
+                    'name': 'sequencerControl',
+                    'initial': 'atSetup',
+                    'children': [
+                        'atSetup',
+                        'movingToStart',
+                        'atStart',
+                        'movingForward',
+                        'movingBackwards',
+                        'atTarget',
+                        'movingToSetup'
+                    ]
+                }
+            ]}
+    ]
 
     def __init__(self, name):
 
@@ -15,7 +42,7 @@ class Hsm(object):
         self.state_changed_callbacks = []
 
         # add a state machine behavior
-        self.machine = Machine(
+        self.machine = HierarchicalMachine(
             model=self,
             states=Hsm.states,
             initial='uninitialized',
@@ -30,7 +57,10 @@ class Hsm(object):
         self.machine.add_transition(trigger='emergency_stop', source='*', dest='emergencyStop')
         self.machine.add_transition(trigger='emergency_shutdown', source='*', dest='emergencyShutdown')
 
-    def state_change(self):
+        self.machine.on_enter(state_name='operational_joystickControl', callback='motion_controller.start_joystick_control')
+        self.machine.on_exit(state_name='operational_joystickControl', callback='motion_controller.stop_joystick_control')
+
+    def state_changed(self):
         print('State changed.')
         for callback in self.state_changed_callbacks:
             callback()
@@ -43,18 +73,8 @@ class Hsm(object):
         motion_controller.homing_run()
         self.done()
 
-    # def on_enter_s_jog_control(self):
-    #     motion_controller.set_jogging_axis('arm')
-    #     motion_controller.start_jogging()
-    #
-    # def on_exit_s_jog_control(self):
-    #     motion_controller.stop_jogging()
-    #
-    # def on_enter_s_joystick_control(self):
-    #     motion_controller.start_joystick_control()
-    #
-    # def on_exit_s_joystick_control(self):
-    #     motion_controller.stop_joystick_control()
+    def test(self):
+        print('Yes, works.')
 
     def on_enter_emergencyStop(self):
         print(f'\033[91mWARNING: Emergency stop triggered!')
