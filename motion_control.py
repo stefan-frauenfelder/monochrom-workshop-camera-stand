@@ -45,6 +45,8 @@ class MotionController:
 
         self._joystick_axes_set = 'arm-lift-rotor'
 
+        self.joystick_thread_id = False
+
     def set_jogging_axis(self, axis_name):
         self._jogging_axis = self._axes[axis_name]
 
@@ -160,15 +162,22 @@ class MotionController:
         self._jogging_flag.clear()
 
     def start_joystick_control(self):
+        print('Starting joystick control')
         # set the joystick flag to true. It is checked in the while loop of joystick control
         self._joystick_flag.set()
-        # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.joystick_control(flag=self._joystick_flag))
-        thread.start()
+        # make sure there is no active joystick thread
+        if self.joystick_thread_id:
+            if self.joystick_thread_id.is_alive():
+                raise RuntimeError('Another joystick thread is still alive.')
+        # start a new joystick thread
+        self.joystick_thread_id = threading.Thread(target=lambda: self.joystick_control(flag=self._joystick_flag))
+        self.joystick_thread_id.start()
 
     def stop_joystick_control(self):
+        print('Stopping joystick control')
         # clearing the joystick flag will cause the previously started joystick thread to return
         self._joystick_flag.clear()
+        self.joystick_thread_id.join(timeout=5)
 
     def disarm_all(self):
         # iterate through _axes

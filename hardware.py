@@ -1,3 +1,4 @@
+import time
 
 # the purpose of this module is to instantiate hardware resources which do not depend on any higher level classes
 
@@ -128,12 +129,12 @@ class HardwareManager:
                 self.cb_rgb_button(0)
 
     def cb_joystick_button(self, value):
-        print('Hardware: Joystick button is pressed.')
+        print('Hardware: Joystick button event.')
         for callback in self.joystick_button_callbacks:
             callback(value)
 
     def cb_rgb_button(self, value):
-        print('Hardware: RGB button is pressed.')
+        print('Hardware: RGB button event.')
         for callback in self.rgb_button_callbacks:
             callback(value)
 

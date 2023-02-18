@@ -47,7 +47,7 @@ class Hsm(object):
             states=Hsm.states,
             initial='uninitialized',
             ignore_invalid_triggers=True,
-            after_state_change='state_changed')
+            after_state_change='state_changed_updater')
 
         # top level transitions
         self.machine.add_transition(trigger='initialize', source='uninitialized', dest='initializing')
@@ -57,30 +57,46 @@ class Hsm(object):
         self.machine.add_transition(trigger='emergency_stop', source='*', dest='emergencyStop')
         self.machine.add_transition(trigger='emergency_shutdown', source='*', dest='emergencyShutdown')
 
-        self.machine.on_enter(state_name='operational_joystickControl', callback='motion_controller.start_joystick_control')
-        self.machine.on_exit(state_name='operational_joystickControl', callback='motion_controller.stop_joystick_control')
+        # startup and initialization sequence
+        self.machine.on_enter(state_name='initializing',
+                              callback='initializing_sequence')
+        self.machine.on_enter(state_name='homing',
+                              callback='homing_sequence')
 
-    def state_changed(self):
+        # joystick control
+        self.machine.on_enter(state_name='operational_joystickControl',
+                              callback='start_joystick_control')
+        self.machine.on_exit(state_name='operational_joystickControl',
+                             callback='stop_joystick_control')
+
+    def state_changed_updater(self, *args, **kwargs):
         print('State changed.')
-        for callback in self.state_changed_callbacks:
-            callback()
+        if self.state_changed_callbacks:
+            for callback in self.state_changed_callbacks:
+                callback()
 
-    def on_enter_initializing(self):
+    def start_joystick_control(self, *args, **kwargs):
+        motion_controller.start_joystick_control()
+
+    def stop_joystick_control(self, *args, **kwargs):
+        motion_controller.stop_joystick_control()
+
+    def initializing_sequence(self, *args, **kwargs):
         motion_controller.initialize_steppers()
         self.done()
 
-    def on_enter_homing(self):
+    def homing_sequence(self, *args, **kwargs):
         motion_controller.homing_run()
         self.done()
 
     def test(self):
         print('Yes, works.')
 
-    def on_enter_emergencyStop(self):
+    def on_enter_emergencyStop(self, *args, **kwargs):
         print(f'\033[91mWARNING: Emergency stop triggered!')
         motion_controller.emergency_stop()
 
-    def on_enter_emergencyShutdown(self):
+    def on_enter_emergencyShutdown(self, *args, **kwargs):
         print(f'\033[91mWARNING: Emergency shutdown sequence triggered!')
         motion_controller.emergency_shutdown()
 

@@ -53,10 +53,10 @@ class Controller:
         self.mode = 0
 
         # add a callback to the HSN to be notified about state changes
-        hsm.state_changed_callbacks.append(self.update())
+        hsm.state_changed_callbacks.append(self.update)
 
         hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
-        hardware_manager.rgb_button_callbacks.append(self.cb_joystick_button_change)
+        hardware_manager.joystick_button_callbacks.append(self.cb_joystick_button_change)
 
     def cb_rotary_selector_switch(self, new_mode):
         print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
