@@ -64,7 +64,7 @@ class Controller:
     def cb_rotary_selector_switch(self, new_mode):
         print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
         if new_mode == 0:
-            hsm.joystick()
+            hsm.polar_joystick()
         elif new_mode == 1:
             hsm.sequence()
         elif new_mode == 2:
@@ -77,7 +77,7 @@ class Controller:
         if value:
             # different behavior depending on current mode
             if self.mode == 0:  # joystick
-                motion_controller.toggle_joystick_axes_set()
+                motion_controller.toggle_polar_joystick_axes_set()
                 print('Toggled joystick axes.')
 
     def cb_rgb_button_change(self, value):
@@ -94,9 +94,9 @@ class Controller:
                 motion_controller.synchronized_move_from_here_to_target(10)
 
     def update(self):
-        if hsm.is_operational_joystickControl():
+        if hsm.is_operational_polarJoystickControl():
             self.display.clear()
-            self.display.mode('Joystick')
+            self.display.mode('Polar Joystick')
             self.display.show()
         elif hsm.is_operational_jogControl():
             self.display.clear()

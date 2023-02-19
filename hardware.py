@@ -113,40 +113,28 @@ class HardwareManager:
             callback(value)
 
     def update_joystick_button(self, values, changed_bits):
-        # only update if the joystick button bit changed
-        if changed_bits & 0x10:
-            joystick_button_up = values & 0x10  # zero means pressed
-            if joystick_button_up:
-                self.cb_joystick_button(0)
-            else:
-                self.cb_joystick_button(1)
+        mask = 0x10
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_joystick_button(not bool(values & mask))  # zero means pressed
 
     def update_rgb_button(self, values, changed_bits):
-        # only update if the rgb button bit changed
-        if changed_bits & 0x20:
-            button_down = values & 0x20  # one means pressed
-            if button_down:
-                self.cb_rgb_button(1)
-            else:
-                self.cb_rgb_button(0)
+        mask = 0x20
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_rgb_button(bool(values & mask))  # one means pressed
 
     def update_a_button(self, values, changed_bits):
-        # only update if the a button bit changed
-        if changed_bits & 0x40:
-            button_down = values & 0x40  # zero means pressed
-            if button_down:
-                self.cb_a_button(0)
-            else:
-                self.cb_a_button(1)
+        mask = 0x40
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_a_button(not bool(values & mask))  # zero means pressed
 
     def update_b_button(self, values, changed_bits):
-        # only update if the a button bit changed
-        if changed_bits & 0x80:
-            button_down = values & 0x80  # zero means pressed
-            if button_down:
-                self.cb_b_button(0)
-            else:
-                self.cb_b_button(1)
+        mask = 0x80
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_b_button(not bool(values & mask))  # zero means pressed
 
     def cb_joystick_button(self, value):
         if value:

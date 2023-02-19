@@ -44,9 +44,9 @@ class MotionController:
         self._jog_axis = None
         self._jog_thread_id = False
 
-        self._joystick_flag = threading.Event()
-        self._joystick_axes_set = 'arm-lift-rotor'
-        self._joystick_thread_id = False
+        self._polar_joystick_flag = threading.Event()
+        self._polar_joystick_axes_set = 'arm-lift-rotor'
+        self._polar_joystick_thread_id = False
 
         self.start_marker = {}
         self.target_marker = {}
@@ -98,16 +98,16 @@ class MotionController:
         # restart jogging
         self.start_jog_control()
 
-    def toggle_joystick_axes_set(self):
+    def toggle_polar_joystick_axes_set(self):
         # stop joystick to switch axes set
-        self.stop_joystick_control()
+        self.stop_polar_joystick_control()
         # switch axes set
-        if self._joystick_axes_set == 'arm-lift-rotor':
-            self._joystick_axes_set = 'pan-tilt'
+        if self._polar_joystick_axes_set == 'arm-lift-rotor':
+            self._polar_joystick_axes_set = 'pan-tilt'
         else:
-            self._joystick_axes_set = 'arm-lift-rotor'
+            self._polar_joystick_axes_set = 'arm-lift-rotor'
         # start again
-        self.start_joystick_control()
+        self.start_polar_joystick_control()
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
@@ -219,23 +219,23 @@ class MotionController:
         self._jog_flag.clear()
         self._jog_thread_id.join(timeout=5)
 
-    def start_joystick_control(self):
-        print('Starting joystick control')
+    def start_polar_joystick_control(self):
+        print('Starting polar joystick control')
         # set the joystick flag to true. It is checked in the while loop of joystick control
-        self._joystick_flag.set()
+        self._polar_joystick_flag.set()
         # make sure there is no active joystick thread
-        if self._joystick_thread_id:
-            if self._joystick_thread_id.is_alive():
-                raise RuntimeError('Another joystick thread is still alive.')
+        if self._polar_joystick_thread_id:
+            if self._polar_joystick_thread_id.is_alive():
+                raise RuntimeError('Another polar joystick thread is still alive.')
         # start a new joystick thread
-        self._joystick_thread_id = threading.Thread(target=lambda: self.joystick_control(flag=self._joystick_flag))
-        self._joystick_thread_id.start()
+        self._polar_joystick_thread_id = threading.Thread(target=lambda: self.polar_joystick_control(flag=self._polar_joystick_flag))
+        self._polar_joystick_thread_id.start()
 
-    def stop_joystick_control(self):
+    def stop_polar_joystick_control(self):
         print('Stopping joystick control')
         # clearing the joystick flag will cause the previously started joystick thread to return
-        self._joystick_flag.clear()
-        self._joystick_thread_id.join(timeout=5)
+        self._polar_joystick_flag.clear()
+        self._polar_joystick_thread_id.join(timeout=5)
 
     def disarm_all(self):
         # iterate through _axes
@@ -546,11 +546,11 @@ class MotionController:
         # if you are here, flag was cleared from outside
         axis.stop()
 
-    def joystick_control(self, flag):
+    def polar_joystick_control(self, flag):
 
-        if self._joystick_axes_set == 'arm-lift-rotor':
+        if self._polar_joystick_axes_set == 'arm-lift-rotor':
             axes = [self._axes['arm'], self._axes['lift'], self._axes['rotor']]
-        elif self._joystick_axes_set == 'pan-tilt':
+        elif self._polar_joystick_axes_set == 'pan-tilt':
             axes = [self._axes['pan'], self._axes['tilt']]
         else:
             raise ValueError('Not a valid axes set. Valid is arm-lift-rotor or pan-tilt.')
@@ -586,6 +586,8 @@ class MotionController:
         # if you are here, flag was cleared from outside
         for i in range(len(axes)):
             axes[i].stop()
+
+
 
 
 # create the one motion controller which will be imported by other modules

@@ -16,9 +16,9 @@ class Hsm(object):
         'emergencyShutdown',
         {
             'name': 'operational',
-            'initial': 'joystickControl',
+            'initial': 'polarJoystickControl',
             'children': [
-                'joystickControl',
+                'polarJoystickControl',
                 'jogControl',
                 {
                     'name': 'sequencerControl',
@@ -61,9 +61,9 @@ class Hsm(object):
         self.machine.add_transition(trigger='emergency_shutdown', source='*', dest='emergencyShutdown')
 
         # mode transitions
-        self.machine.add_transition(trigger='joystick', source=['operational_jogControl', 'operational_sequencerControl'], dest='operational_joystickControl')
-        self.machine.add_transition(trigger='sequence', source=['operational_jogControl', 'operational_joystickControl'], dest='operational_sequencerControl')
-        self.machine.add_transition(trigger='jog', source=['operational_joystickControl', 'operational_sequencerControl'], dest='operational_jogControl')
+        self.machine.add_transition(trigger='polar_joystick', source=['operational_jogControl', 'operational_sequencerControl'], dest='operational_polarJoystickControl')
+        self.machine.add_transition(trigger='sequence', source=['operational_jogControl', 'operational_polarJoystickControl'], dest='operational_sequencerControl')
+        self.machine.add_transition(trigger='jog', source=['operational_polarJoystickControl', 'operational_sequencerControl'], dest='operational_jogControl')
 
         # definition of callbacks
 
@@ -74,10 +74,10 @@ class Hsm(object):
                               callback='homing_sequence')
 
         # joystick control
-        self.machine.on_enter(state_name='operational_joystickControl',
-                              callback='start_joystick_control')
-        self.machine.on_exit(state_name='operational_joystickControl',
-                             callback='stop_joystick_control')
+        self.machine.on_enter(state_name='operational_polarJoystickControl',
+                              callback='start_polar_joystick_control')
+        self.machine.on_exit(state_name='operational_polarJoystickControl',
+                             callback='stop_polar_joystick_control')
 
         # jog control
         self.machine.on_enter(state_name='operational_jogControl',
@@ -98,11 +98,11 @@ class Hsm(object):
             for callback in self.state_changed_callbacks:
                 callback()
 
-    def start_joystick_control(self, event):
-        motion_controller.start_joystick_control()
+    def start_polar_joystick_control(self, event):
+        motion_controller.start_polar_joystick_control()
 
-    def stop_joystick_control(self, event):
-        motion_controller.stop_joystick_control()
+    def stop_polar_joystick_control(self, event):
+        motion_controller.stop_polar_joystick_control()
 
     def start_jog_control(self, event):
         motion_controller.start_jog_control()
