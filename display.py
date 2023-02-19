@@ -8,12 +8,25 @@ DISPLAY_SPI_CS = 0
 DISPLAY_SPI_DC = 25
 DISPLAY_BACKLIGHT = 7
 
-# Screen dimensions
-WIDTH = 320
-HEIGHT = 240
+# native screen dimensions
+HARDWARE_WIDTH = 320
+HARDWARE_HEIGHT = 240
+
+# all drawing happens in an image that is 3 times larger and rotated
+# resulting in a resolution of 720 width and 960 height
+SCALING_FACTOR = 3
+WIDTH = HARDWARE_HEIGHT * SCALING_FACTOR
+HEIGHT = HARDWARE_WIDTH * SCALING_FACTOR
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
 
 
 class Display:
+
+    NN_1050_50 = ImageFont.truetype(font='NN1050.otf', size=50)
+    NN_1050_100 = ImageFont.truetype(font='NN1050.otf', size=100)
 
     def __init__(self):
 
@@ -22,70 +35,38 @@ class Display:
             cs=DISPLAY_SPI_CS,
             dc=DISPLAY_SPI_DC,
             backlight=DISPLAY_BACKLIGHT,
-            width=WIDTH,
-            height=HEIGHT,
-            rotation=180,
-            spi_speed_hz=10 * 1000 * 1000  # was 60 *
+            width=HARDWARE_WIDTH,
+            height=HARDWARE_HEIGHT,
+            rotation=0,
+            spi_speed_hz=30 * 1000 * 1000  # was 60, 40 works, 50 does not
         )
 
-    def demo(self):
-        # Clear the display to a black background.
-        # Get a PIL Draw object to start drawing on the display buffer.
-        img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+        self.image = Image.new('RGBA', (WIDTH, HEIGHT), color=BLACK)
+        self.draw = ImageDraw.Draw(self.image)
 
-        draw = ImageDraw.Draw(img)
+    def show(self):
+        # resize to fit hardware using antialiasing (which gives a nicer image than using the display's native size)
+        rotated_hardware_image = self.image.resize((HARDWARE_HEIGHT, HARDWARE_WIDTH), Image.ANTIALIAS)
+        # rotate the image since the ST7789 library wants it that way
+        hardware_image = rotated_hardware_image.rotate(90, expand=True)
+        # update the display using the resulted image
+        self.display.display(hardware_image)
 
-        # Draw a purple rectangle with yellow outline.
-        # draw.rectangle((10, 10, WIDTH - 10, HEIGHT - 10), outline=(255, 255, 0), fill=(255, 0, 255))
+    def mode(self, text):
+        # preferences
+        y_location = 800
+        label_font = self.NN_1050_50
+        mode_font = self.NN_1050_100
+        # draw a small gray label and a large white mode text centered on screen
+        (mode_width, mode_height) = self.draw.textsize(text, font=mode_font)
+        (label_width, label_height) = self.draw.textsize('Current mode:', font=label_font)
+        left_space = (WIDTH - mode_width) / 2
+        self.draw.text((left_space, y_location), 'Current mode:', font=label_font, fill=GRAY)
+        self.draw.text((left_space, y_location + label_height + 20), text, font=mode_font, fill=WHITE)
 
-        # Draw some shapes.
-        # Draw an ellipse with a white outline.
-        draw.ellipse((10, 10, WIDTH - 10, HEIGHT - 10), outline=(255, 255, 255), fill=(0, 0, 0))
+    def clear(self):
+        # draw black rectangle to clear
+        self.draw.rectangle((0, 0, WIDTH, HEIGHT), fill=BLACK)
 
-        big_size = (img.size[0] * 3, img.size[1] * 3)
-
-        big_img = Image.new('RGB', big_size, color=(0, 0, 0))
-        big_draw = ImageDraw.Draw(big_img)
-        big_draw.ellipse((40, 40, big_size[0] - 40, big_size[1] - 40), outline=(255, 255, 255), fill=(0, 0, 0), width=5 )
-        paste_img = big_img.resize(img.size, Image.ANTIALIAS)
-        img.paste(paste_img)
-
-        # Draw a white X.
-        # draw.line((10, 10, WIDTH - 10, HEIGHT - 10), fill=(255, 255, 255))
-        # draw.line((10, HEIGHT - 10, WIDTH - 10, 10), fill=(255, 255, 255))
-
-        # Draw a cyan triangle with a black outline.
-        # draw.polygon([(WIDTH / 2, 10), (WIDTH - 10, HEIGHT - 10), (10, HEIGHT - 10)], outline=(0, 0, 0), fill=(0, 255, 255))
-
-        # Load default font.
-        font = ImageFont.load_default()
-
-        draw.text((20, 20), 'Hello world', font=font, fill=(255, 255, 255))
-
-
-
-        # Write two lines of white text on the buffer, rotated 90 degrees counter clockwise.
-        # self.draw_rotated_text(img, 'Hello World!', (0, 0), 90, font, fill=(255, 255, 255))
-        # self.draw_rotated_text(img, 'This is a line of text.', (10, HEIGHT - 10), 0, font, fill=(255, 255, 255))
-
-        # Write buffer to display hardware, must be called to make things visible on the
-        # display!
-        self.display.display(img)
-
-    # Define a function to create rotated text.  Unfortunately PIL doesn't have good
-    # native support for rotated fonts, but this function can be used to make a
-    # text image and rotate it so it's easy to paste in the buffer.
-
-    def draw_rotated_text(self, image, text, position, angle, font, fill=(255, 255, 255)):
-        # Get rendered font width and height.
-        draw = ImageDraw.Draw(image)
-        width, height = draw.textsize(text, font=font)
-        # Create a new image with transparent background to store the text.
-        textimage = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        # Render the text.
-        textdraw = ImageDraw.Draw(textimage)
-        textdraw.text((0, 0), text, font=font, fill=fill)
-        # Rotate the text image.
-        rotated = textimage.rotate(angle, expand=1)
-        # Paste the text into the image, using it as a mask for transparency.
-        image.paste(rotated, position, rotated)
+    def update(self):
+        self.show()

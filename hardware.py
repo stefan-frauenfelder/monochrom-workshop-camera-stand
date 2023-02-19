@@ -44,7 +44,7 @@ class HardwareManager:
 
         # create the small, external display on the controller
         self.display = Display()
-        self.display.demo()
+        self.display.update()
 
         # set up the hardware opto-isolated input and relay outputs cards
         self.sequent_ports = SequentPorts(SEQUENT_INTERRUPT_GPIO)

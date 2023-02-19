@@ -52,18 +52,23 @@ class Controller:
 
         self.mode = 0
 
+        self.display = hardware_manager.display
+
         # add a callback to the HSN to be notified about state changes
         hsm.state_changed_callbacks.append(self.update)
 
         hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
         hardware_manager.joystick_button_callbacks.append(self.cb_joystick_button_change)
+        hardware_manager.rgb_button_callbacks.append(self.cb_rgb_button_change)
 
     def cb_rotary_selector_switch(self, new_mode):
         print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
         if new_mode == 0:
-            hsm.e_joystick_control()
-        elif self.mode == 0:
-            hsm.e_idle()
+            hsm.joystick()
+        elif new_mode == 1:
+            hsm.sequence()
+        elif new_mode == 2:
+            hsm.jog()
         # update
         self.mode = new_mode
 
@@ -75,5 +80,23 @@ class Controller:
                 motion_controller.toggle_joystick_axes_set()
                 print('Toggled joystick axes.')
 
-    def update(self):
+    def cb_rgb_button_change(self, value):
         pass
+
+    def update(self):
+        if hsm.is_operational_joystickControl():
+            self.display.clear()
+            self.display.mode('Joystick')
+            self.display.show()
+        elif hsm.is_operational_jogControl():
+            self.display.clear()
+            self.display.mode('Jogging')
+            self.display.show()
+        elif hsm.is_operational_sequencerControl():
+            self.display.clear()
+            self.display.mode('Sequencer')
+            self.display.show()
+        else:
+            self.display.clear()
+            self.display.mode('Other')
+            self.display.show()
