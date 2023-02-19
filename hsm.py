@@ -102,13 +102,13 @@ class Hsm(object):
         motion_controller.start_polar_joystick_control()
 
     def stop_polar_joystick_control(self, event):
-        motion_controller.stop_polar_joystick_control()
+        motion_controller.stop_continuous_control_thread()
 
     def start_jog_control(self, event):
         motion_controller.start_jog_control()
 
     def stop_jog_control(self, event):
-        motion_controller.stop_jog_control()
+        motion_controller.stop_continuous_control_thread()
 
     def initializing_sequence(self, event):
         motion_controller.initialize_steppers()

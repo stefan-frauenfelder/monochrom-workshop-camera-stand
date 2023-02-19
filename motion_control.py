@@ -39,14 +39,13 @@ class MotionController:
         # set up the hardware opto-isolated input and relay outputs cards
         self.io_card = hardware_manager.sequent_ports
 
-        # create a couple of events which manage flags that allow to abort threads
-        self._jog_flag = threading.Event()
-        self._jog_axis = None
-        self._jog_thread_id = False
+        # create an event which manages a flag that allows to abort a running thread
+        self._continuous_control_flag = threading.Event()
+        self._continuous_control_thread_id = False
 
-        self._polar_joystick_flag = threading.Event()
+        self._jog_axis = None
+
         self._polar_joystick_axes_set = 'arm-lift-rotor'
-        self._polar_joystick_thread_id = False
 
         self.start_marker = {}
         self.target_marker = {}
@@ -79,7 +78,7 @@ class MotionController:
 
     def toggle_jog_axis(self):
         # stop jogging to switch axis
-        self.stop_jog_control()
+        self.stop_continuous_control_thread()
         if self._axes:
             if not self._jog_axis:
                 self._jog_axis = self._axes['arm']
@@ -100,7 +99,7 @@ class MotionController:
 
     def toggle_polar_joystick_axes_set(self):
         # stop joystick to switch axes set
-        self.stop_polar_joystick_control()
+        self.stop_continuous_control_thread()
         # switch axes set
         if self._polar_joystick_axes_set == 'arm-lift-rotor':
             self._polar_joystick_axes_set = 'pan-tilt'
@@ -203,39 +202,29 @@ class MotionController:
         # the first time jogging is started, an axis needs to be set
         if not self._jog_axis:
             self._jog_axis = self._axes['arm']
-        # set the jogging flag to true. It is checked in the while loop of jogging
-        self._jog_flag.set()
-        # make sure there is no active jogging thread
-        if self._jog_thread_id:
-            if self._jog_thread_id.is_alive():
-                raise RuntimeError('Another jogging thread is still alive.')
-        # create a new thread and start it
-        self._jog_thread_id = threading.Thread(target=lambda: self.jog(wheel=self._wheel, flag=self._jog_flag))
-        self._jog_thread_id.start()
-
-    def stop_jog_control(self):
-        print('Stopping jog control')
-        # clearing the jogging flag will cause the previously started jogging thread to return
-        self._jog_flag.clear()
-        self._jog_thread_id.join(timeout=5)
+        self.start_continuous_control_thread(self.jog)
 
     def start_polar_joystick_control(self):
         print('Starting polar joystick control')
-        # set the joystick flag to true. It is checked in the while loop of joystick control
-        self._polar_joystick_flag.set()
-        # make sure there is no active joystick thread
-        if self._polar_joystick_thread_id:
-            if self._polar_joystick_thread_id.is_alive():
-                raise RuntimeError('Another polar joystick thread is still alive.')
-        # start a new joystick thread
-        self._polar_joystick_thread_id = threading.Thread(target=lambda: self.polar_joystick_control(flag=self._polar_joystick_flag))
-        self._polar_joystick_thread_id.start()
+        self.start_continuous_control_thread(self.polar_joystick_control)
 
-    def stop_polar_joystick_control(self):
-        print('Stopping joystick control')
-        # clearing the joystick flag will cause the previously started joystick thread to return
-        self._polar_joystick_flag.clear()
-        self._polar_joystick_thread_id.join(timeout=5)
+    def start_continuous_control_thread(self, target):
+        print('Starting continuous control thread')
+        # set the flag to true. It is checked in the while loop of every continuous control target function
+        self._continuous_control_flag.set()
+        # make sure there is no active thread
+        if self._continuous_control_thread_id:
+            if self._continuous_control_thread_id.is_alive():
+                raise RuntimeError('Another continuous thread is still alive.')
+        # start a new thread
+        self._continuous_control_thread_id = threading.Thread(target=lambda: target(flag=self._continuous_control_flag))
+        self._continuous_control_thread_id.start()
+
+    def stop_continuous_control_thread(self):
+        print('Stopping continuous control thread')
+        # clearing the flag will cause the previously started thread to return
+        self._continuous_control_flag.clear()
+        self._continuous_control_thread_id.join(timeout=5)
 
     def disarm_all(self):
         # iterate through _axes
@@ -502,7 +491,7 @@ class MotionController:
         time.sleep(0.2)
         self.go_neutral()
 
-    def jog(self, wheel, flag):
+    def jog(self, flag):
         # preferences
         jog_wheel_scaling = 200
 
@@ -513,9 +502,9 @@ class MotionController:
         near_limit = axis.near_absolute_limit
         far_limit = axis.far_absolute_limit
 
-        wheel.counter = int(jog_wheel_scaling * current_position)
-        wheel.min = int(jog_wheel_scaling * near_limit)
-        wheel.max = int(jog_wheel_scaling * far_limit)
+        self._wheel.counter = int(jog_wheel_scaling * current_position)
+        self._wheel.min = int(jog_wheel_scaling * near_limit)
+        self._wheel.max = int(jog_wheel_scaling * far_limit)
 
         axis.mode = "speed_mode"
         axis.ramp_type = "jerkfree"
@@ -525,7 +514,7 @@ class MotionController:
 
         while flag.is_set():
 
-            distance = round(float(wheel.counter) / jog_wheel_scaling, 3) - round(axis.absolute_position, 3)
+            distance = round(float(self._wheel.counter) / jog_wheel_scaling, 3) - round(axis.absolute_position, 3)
 
             if not (distance == 0):
 
