@@ -81,7 +81,17 @@ class Controller:
                 print('Toggled joystick axes.')
 
     def cb_rgb_button_change(self, value):
-        pass
+        # only if button is pressed
+        if value:
+            if self.mode == 2:  # jog
+                motion_controller.toggle_jog_axis()
+                print('Toggled jog axis.')
+            elif self.mode == 0:  # joystick
+                marker = motion_controller.get_marker()
+                print(marker)
+                motion_controller.target_marker = marker
+            elif self.mode == 1:  # sequencer
+                motion_controller.synchronized_move_from_here_to_target(10)
 
     def update(self):
         if hsm.is_operational_joystickControl():

@@ -32,7 +32,7 @@ class MotionController:
         self.commander = Commander(ser=serial_port, lock=commander_lock)
         # _axes are empty for now and are created upon user request
         self._axes = None
-        self._jogging_axis = None
+
 
         self._wheel = hardware_manager.wheel
 
@@ -40,15 +40,63 @@ class MotionController:
         self.io_card = hardware_manager.sequent_ports
 
         # create a couple of events which manage flags that allow to abort threads
-        self._jogging_flag = threading.Event()
+        self._jog_flag = threading.Event()
+        self._jog_axis = None
+        self._jog_thread_id = False
+
         self._joystick_flag = threading.Event()
-
         self._joystick_axes_set = 'arm-lift-rotor'
+        self._joystick_thread_id = False
 
-        self.joystick_thread_id = False
+        self.start_marker = {}
+        self.target_marker = {}
 
-    def set_jogging_axis(self, axis_name):
-        self._jogging_axis = self._axes[axis_name]
+    def get_marker(self):
+        marker = {}
+        for key in self._axes:
+            # unpack
+            axis: LocatedStepper = self._axes[key]
+            # store current position
+            marker[key] = axis.absolute_position
+        return marker
+
+    def synchronized_move_from_here_to_target(self, duration):
+        # set current position to start position
+        self.start_marker = self.get_marker()
+        # start synchronized move from start to target
+        for key in self._axes:
+            # unpack
+            axis: LocatedStepper = self._axes[key]
+            start_location = self.start_marker[key]
+            target_location = self.target_marker[key]
+            # calculate speed based on duration and distance
+            distance = target_location - start_location
+            speed = distance / duration
+            # arm the axis
+            axis.goto_absolute_position(position=target_location, speed=speed)
+        # start all axes
+        self.parallel_run()
+
+    def toggle_jog_axis(self):
+        # stop jogging to switch axis
+        self.stop_jog_control()
+        if self._axes:
+            if not self._jog_axis:
+                self._jog_axis = self._axes['arm']
+            elif self._jog_axis == self._axes['arm']:
+                self._jog_axis = self._axes['lift']
+            elif self._jog_axis == self._axes['lift']:
+                self._jog_axis = self._axes['rotor']
+            elif self._jog_axis == self._axes['rotor']:
+                self._jog_axis = self._axes['pan']
+            elif self._jog_axis == self._axes['pan']:
+                self._jog_axis = self._axes['tilt']
+            elif self._jog_axis == self._axes['tilt']:
+                self._jog_axis = self._axes['arm']
+            else:
+                raise ValueError('Error setting jogging axes.')
+        # restart jogging
+        self.start_jog_control()
 
     def toggle_joystick_axes_set(self):
         # stop joystick to switch axes set
@@ -150,34 +198,44 @@ class MotionController:
             time.sleep(0.1)
         print('Steppers powered down.')
 
-    def start_jogging(self):
+    def start_jog_control(self):
+        print('Starting jog control')
+        # the first time jogging is started, an axis needs to be set
+        if not self._jog_axis:
+            self._jog_axis = self._axes['arm']
         # set the jogging flag to true. It is checked in the while loop of jogging
-        self._jogging_flag.set()
+        self._jog_flag.set()
+        # make sure there is no active jogging thread
+        if self._jog_thread_id:
+            if self._jog_thread_id.is_alive():
+                raise RuntimeError('Another jogging thread is still alive.')
         # create a new thread and start it
-        thread = threading.Thread(target=lambda: self.jog(wheel=self._wheel, flag=self._jogging_flag))
-        thread.start()
+        self._jog_thread_id = threading.Thread(target=lambda: self.jog(wheel=self._wheel, flag=self._jog_flag))
+        self._jog_thread_id.start()
 
-    def stop_jogging(self):
+    def stop_jog_control(self):
+        print('Stopping jog control')
         # clearing the jogging flag will cause the previously started jogging thread to return
-        self._jogging_flag.clear()
+        self._jog_flag.clear()
+        self._jog_thread_id.join(timeout=5)
 
     def start_joystick_control(self):
         print('Starting joystick control')
         # set the joystick flag to true. It is checked in the while loop of joystick control
         self._joystick_flag.set()
         # make sure there is no active joystick thread
-        if self.joystick_thread_id:
-            if self.joystick_thread_id.is_alive():
+        if self._joystick_thread_id:
+            if self._joystick_thread_id.is_alive():
                 raise RuntimeError('Another joystick thread is still alive.')
         # start a new joystick thread
-        self.joystick_thread_id = threading.Thread(target=lambda: self.joystick_control(flag=self._joystick_flag))
-        self.joystick_thread_id.start()
+        self._joystick_thread_id = threading.Thread(target=lambda: self.joystick_control(flag=self._joystick_flag))
+        self._joystick_thread_id.start()
 
     def stop_joystick_control(self):
         print('Stopping joystick control')
         # clearing the joystick flag will cause the previously started joystick thread to return
         self._joystick_flag.clear()
-        self.joystick_thread_id.join(timeout=5)
+        self._joystick_thread_id.join(timeout=5)
 
     def disarm_all(self):
         # iterate through _axes
@@ -445,17 +503,19 @@ class MotionController:
         self.go_neutral()
 
     def jog(self, wheel, flag):
+        # preferences
+        jog_wheel_scaling = 200
 
-        axis = self._jogging_axis
+        axis = self._jog_axis
 
         current_position = axis.absolute_position
 
         near_limit = axis.near_absolute_limit
         far_limit = axis.far_absolute_limit
 
-        wheel.counter = int(1000 * current_position)
-        wheel.min = int(1000 * near_limit)
-        wheel.max = int(1000 * far_limit)
+        wheel.counter = int(jog_wheel_scaling * current_position)
+        wheel.min = int(jog_wheel_scaling * near_limit)
+        wheel.max = int(jog_wheel_scaling * far_limit)
 
         axis.mode = "speed_mode"
         axis.ramp_type = "jerkfree"
@@ -465,7 +525,7 @@ class MotionController:
 
         while flag.is_set():
 
-            distance = round(float(wheel.counter) / 1000, 3) - round(axis.absolute_position, 3)
+            distance = round(float(wheel.counter) / jog_wheel_scaling, 3) - round(axis.absolute_position, 3)
 
             if not (distance == 0):
 

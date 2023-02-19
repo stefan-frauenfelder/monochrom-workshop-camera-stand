@@ -19,16 +19,15 @@ class Commander():
     def write_command(self, address, command):
         # the calling thread aquires the lock and blocks other threads from using the commander until done
         with self._lock:
-
             self._ser.write(b'#' + (str(address)).encode('UTF-8') + command + b'\r')
             answer = self._ser.read_until(b'\r')  # read until '\r' appears
             answer = answer[1:].rstrip(b'\r')
-            print('Invoced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
+            # print('Invoiced ' + command.decode('UTF-8') + ' for motor ' + str(address) + ' received answer ' + answer.decode('UTF-8').rstrip('\r'))  # print
             return answer
 
 
 class SoftLimitViolationException(Exception):
-    "Raised when a stepper moves outside its safe travel zone"
+    """Raised when a stepper moves outside its safe travel zone"""
     pass
 
 

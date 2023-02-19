@@ -79,6 +79,12 @@ class Hsm(object):
         self.machine.on_exit(state_name='operational_joystickControl',
                              callback='stop_joystick_control')
 
+        # jog control
+        self.machine.on_enter(state_name='operational_jogControl',
+                              callback='start_jog_control')
+        self.machine.on_exit(state_name='operational_jogControl',
+                             callback='stop_jog_control')
+
         # emergency behavior
         self.machine.on_enter(state_name='emergencyStop',
                               callback='emergency_stop_sequence')
@@ -97,6 +103,12 @@ class Hsm(object):
 
     def stop_joystick_control(self, event):
         motion_controller.stop_joystick_control()
+
+    def start_jog_control(self, event):
+        motion_controller.start_jog_control()
+
+    def stop_jog_control(self, event):
+        motion_controller.stop_jog_control()
 
     def initializing_sequence(self, event):
         motion_controller.initialize_steppers()

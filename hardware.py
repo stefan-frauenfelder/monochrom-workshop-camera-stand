@@ -87,6 +87,8 @@ class HardwareManager:
         self.update_rotary_selector_value(values=new_values, changed_bits=changed_bits)
         self.update_joystick_button(values=new_values, changed_bits=changed_bits)
         self.update_rgb_button(values=new_values, changed_bits=changed_bits)
+        self.update_a_button(values=new_values, changed_bits=changed_bits)
+        self.update_b_button(values=new_values, changed_bits=changed_bits)
 
     def update_rotary_selector_value(self, values, changed_bits):
         # only update if one of the rotary values changed
@@ -128,15 +130,51 @@ class HardwareManager:
             else:
                 self.cb_rgb_button(0)
 
+    def update_a_button(self, values, changed_bits):
+        # only update if the a button bit changed
+        if changed_bits & 0x40:
+            button_down = values & 0x40  # zero means pressed
+            if button_down:
+                self.cb_a_button(0)
+            else:
+                self.cb_a_button(1)
+
+    def update_b_button(self, values, changed_bits):
+        # only update if the a button bit changed
+        if changed_bits & 0x80:
+            button_down = values & 0x80  # zero means pressed
+            if button_down:
+                self.cb_b_button(0)
+            else:
+                self.cb_b_button(1)
+
     def cb_joystick_button(self, value):
-        print('Hardware: Joystick button event.')
+        if value:
+            print('Hardware: joystick button pressed.')
+        else:
+            print('Hardware: joystick button released.')
         for callback in self.joystick_button_callbacks:
             callback(value)
 
     def cb_rgb_button(self, value):
-        print('Hardware: RGB button event.')
+        if value:
+            print('Hardware: RGB button pressed.')
+        else:
+            print('Hardware: RGB button released.')
         for callback in self.rgb_button_callbacks:
             callback(value)
+
+    def cb_a_button(self, value):
+        if value:
+            print('Hardware: A button pressed.')
+        else:
+            print('Hardware: A button released.')
+
+    def cb_b_button(self, value):
+        if value:
+            print('Hardware: B button pressed.')
+        else:
+            print('Hardware: B button released.')
 
     def rotary_encoder_callback(self, counter):
         print('Counter value: ', counter)
