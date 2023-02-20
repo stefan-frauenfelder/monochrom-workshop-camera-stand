@@ -1,95 +1,118 @@
-from statemachine import StateMachine, State
+import logging
 
 from motion_control import motion_controller
 
 from transitions.extensions import HierarchicalMachine
+from transitions.extensions.nesting import NestedState
+NestedState.separator = '↦'
 
 
 class Hsm(object):
 
-    states = [
-        'uninitialized',
-        'initializing',
-        'initialized',
-        'homing',
-        'emergencyStop',
-        'emergencyShutdown',
-        {
-            'name': 'operational',
-            'initial': 'polarJoystickControl',
-            'children': [
-                'polarJoystickControl',
-                'jogControl',
-                {
-                    'name': 'sequencerControl',
-                    'initial': 'atSetup',
-                    'children': [
-                        'atSetup',
-                        'movingToStart',
-                        'atStart',
-                        'movingForward',
-                        'movingBackwards',
-                        'atTarget',
-                        'movingToSetup'
-                    ]
-                }
-            ]}
-    ]
-
     def __init__(self, name):
 
-        self.name = name
-        self.state_changed_callbacks = []
+        logging.basicConfig(level=logging.INFO)
 
-        # add a state machine behavior
-        self.machine = HierarchicalMachine(
-            model=self,
-            states=Hsm.states,
-            initial='uninitialized',
+        sequencer_states = [
+            's_at_setup',
+            's_moving_to_start',
+            's_at_start',
+            's_moving_forward',
+            's_moving_backwards',
+            's_at_target',
+            's_moving_to_setup'
+        ]
+
+        # add a (sub-sub-) state machine
+        self.sequencer = HierarchicalMachine(
+            states=sequencer_states,
+            initial='s_at_setup',
             send_event=True,
             ignore_invalid_triggers=True,
             after_state_change='state_changed_updater')
 
-        # definition of transitions
+        operational_states = [
+            's_jog_control',
+            's_polar_joystick_control',
+            's_rectilinear_joystick_control',
+            's_mirror_slider',
+            {
+                'name': 's_sequencer_control',
+                'initial': 's_at_setup',
+                'children': self.sequencer
+            }
+        ]
 
-        # top level transitions
-        self.machine.add_transition(trigger='initialize', source='uninitialized', dest='initializing')
-        self.machine.add_transition(trigger='done', source='initializing', dest='initialized')
-        self.machine.add_transition(trigger='home', source='initialized', dest='homing')
-        self.machine.add_transition(trigger='done', source='homing', dest='operational')
-        self.machine.add_transition(trigger='emergency_stop', source='*', dest='emergencyStop')
-        self.machine.add_transition(trigger='emergency_shutdown', source='*', dest='emergencyShutdown')
+        # add a (sub-) state machine
+        self.operator = HierarchicalMachine(
+            states=operational_states,
+            initial='s_polar_joystick_control',
+            send_event=True,
+            ignore_invalid_triggers=True,
+            after_state_change='state_changed_updater')
 
         # mode transitions
-        self.machine.add_transition(trigger='polar_joystick', source=['operational_jogControl', 'operational_sequencerControl'], dest='operational_polarJoystickControl')
-        self.machine.add_transition(trigger='sequence', source=['operational_jogControl', 'operational_polarJoystickControl'], dest='operational_sequencerControl')
-        self.machine.add_transition(trigger='jog', source=['operational_polarJoystickControl', 'operational_sequencerControl'], dest='operational_jogControl')
+        self.operator.add_transition(trigger='trig_jog', source='*', dest='s_jog_control')
+        self.operator.add_transition(trigger='trig_polar_joystick', source='*', dest='s_polar_joystick_control')
+        self.operator.add_transition(trigger='trig_rectilinear_joystick', source='*', dest='s_rectilinear_joystick_control')
+        self.operator.add_transition(trigger='trig_mirror_slider', source='*', dest='s_mirror_slider')
+        self.operator.add_transition(trigger='trig_sequencer', source='*', dest='s_sequencer_control')
+
+        root_states = [
+            's_uninitialized',
+            's_initializing',
+            's_initialized',
+            's_homing',
+            's_emergency_stop',
+            's_emergency_shutdown',
+            {
+                'name': 's_operational',
+                'initial': 's_polar_joystick_control',
+                'children': self.operator
+            }
+        ]
+
+        # add the root state machine
+        self.system = HierarchicalMachine(
+            model=self,
+            states=root_states,
+            initial='s_uninitialized',
+            send_event=True,
+            ignore_invalid_triggers=True,
+            after_state_change='state_changed_updater')
+
+        # top level transitions
+        self.system.add_transition(trigger='trig_initialize', source='s_uninitialized', dest='s_initializing')
+        self.system.add_transition(trigger='trig_done', source='s_initializing', dest='s_initialized')
+        self.system.add_transition(trigger='trig_home', source='s_initialized', dest='s_homing')
+        self.system.add_transition(trigger='trig_done', source='s_homing', dest='s_operational')
+        self.system.add_transition(trigger='trig_emergency_stop', source='*', dest='s_emergency_stop')
+        self.system.add_transition(trigger='trig_emergency_shutdown', source='*', dest='s_emergency_shutdown')
+
+        self.name = name
+        self.state_changed_callbacks = []
 
         # definition of callbacks
 
         # startup and initialization sequence
-        self.machine.on_enter(state_name='initializing',
-                              callback='initializing_sequence')
-        self.machine.on_enter(state_name='homing',
-                              callback='homing_sequence')
+        self.system.on_enter(state_name='s_initializing', callback='initializing_sequence')
+        self.system.on_enter(state_name='s_homing', callback='homing_sequence')
 
-        # joystick control
-        self.machine.on_enter(state_name='operational_polarJoystickControl',
-                              callback='start_polar_joystick_control')
-        self.machine.on_exit(state_name='operational_polarJoystickControl',
-                             callback='stop_polar_joystick_control')
+        # polar joystick control
+        self.operator.on_enter(state_name='s_polar_joystick_control', callback='start_polar_joystick_control')
+        self.operator.on_exit(state_name='s_polar_joystick_control', callback='stop_polar_joystick_control')
+
+        # rectilinear joystick control
+        self.operator.on_enter(state_name='s_rectilinear_joystick_control', callback='start_rectilinear_joystick_control')
+        self.operator.on_exit(state_name='s_rectilinear_joystick_control', callback='stop_rectilinear_joystick_control')
 
         # jog control
-        self.machine.on_enter(state_name='operational_jogControl',
-                              callback='start_jog_control')
-        self.machine.on_exit(state_name='operational_jogControl',
-                             callback='stop_jog_control')
+        self.operator.on_enter(state_name='s_jog_control', callback='start_jog_control')
+        self.operator.on_exit(state_name='s_jog_control', callback='stop_jog_control')
 
         # emergency behavior
-        self.machine.on_enter(state_name='emergencyStop',
-                              callback='emergency_stop_sequence')
-        self.machine.on_enter(state_name='emergencyShutdown',
-                              callback='emergency_shutdown_sequence')
+        self.system.on_enter(state_name='s_emergency_stop', callback='emergency_stop_sequence')
+        self.system.on_enter(state_name='s_emergency_shutdown', callback='emergency_shutdown_sequence')
 
     def state_changed_updater(self, event):
         # state_name =
@@ -104,6 +127,12 @@ class Hsm(object):
     def stop_polar_joystick_control(self, event):
         motion_controller.stop_continuous_control_thread()
 
+    def start_rectilinear_joystick_control(self, event):
+        motion_controller.start_rectilinear_joystick_control()
+
+    def stop_rectilinear_joystick_control(self, event):
+        motion_controller.stop_continuous_control_thread()
+
     def start_jog_control(self, event):
         motion_controller.start_jog_control()
 
@@ -112,11 +141,11 @@ class Hsm(object):
 
     def initializing_sequence(self, event):
         motion_controller.initialize_steppers()
-        self.done()
+        self.trig_done()
 
     def homing_sequence(self, event):
         motion_controller.homing_run()
-        self.done()
+        self.trig_done()
 
     def test(self):
         print('Yes, works.')

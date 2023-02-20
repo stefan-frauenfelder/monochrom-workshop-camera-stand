@@ -76,3 +76,11 @@ def front_linear_motion_rotor_pan_speed(t, k, s_0, distance):
     denominator = pow(distance, 2) + pow((k * t + s_0), 2)
 
     return nominator / denominator
+
+
+def rectilinear_camera_coordinates(rotor_angle, arm_position):
+
+    x = math.cos(rotor_angle) * arm_position
+    y = math.sin(rotor_angle) * arm_position
+
+    return x, y

@@ -208,6 +208,10 @@ class MotionController:
         print('Starting polar joystick control')
         self.start_continuous_control_thread(self.polar_joystick_control)
 
+    def start_rectilinear_joystick_control(self):
+        print('Starting rectilinear joystick control')
+        self.start_continuous_control_thread(self.rectilinear_joystick_control)
+
     def start_continuous_control_thread(self, target):
         print('Starting continuous control thread')
         # set the flag to true. It is checked in the while loop of every continuous control target function
@@ -236,12 +240,16 @@ class MotionController:
         for axis in self._axes.values():
             # immediately stop axis
             axis.immediate_stop()
+        # stop any continuous control thread
+        self.stop_continuous_control_thread()
 
     def emergency_shutdown(self):
         # power down all motors
         for axis in self._axes.values():
             axis.shutdown()
         print('Steppers powered down.')
+        # stop any continuous control thread
+        self.stop_continuous_control_thread()
 
     def parallel_run(self):
         # create a list of threads
@@ -395,66 +403,42 @@ class MotionController:
 
             print('Sleep time was ' + str(sleep_time))
 
-    def front_linear_motion(self, distance, duration, step_frequency, start_s, stop_s):
+    def front_linear_motion(self, distance, duration, start_s, stop_s):
 
-        input("Press Enter to start linear motion...")
+        axes = [self._axes['arm'], self._axes['rotor'], self._axes['pan']]
 
-        # get arm, rotor, and pan ready for circular motion using speed mode
-        self._axes['arm'].mode = "speed_mode"
-        self._axes['arm'].ramp_type = "jerkfree"
-        self._axes['arm'].jerk = 5
-
-        self._axes['rotor'].mode = "speed_mode"
-        self._axes['rotor'].ramp_type = "jerkfree"
-        self._axes['rotor'].jerk = 5
-
-        self._axes['pan'].mode = "speed_mode"
-        self._axes['pan'].ramp_type = "jerkfree"
-        self._axes['pan'].jerk = 5
-
-        step_periode = 1.0 / step_frequency
+        for axis in axes:
+            axis.mode = "speed_mode"
+            axis.ramp_type = "jerkfree"
+            axis.jerk = 20
 
         start_time = time.time()
-
-        loop_count = 0
+        stopped = True
         t = 0
-
         k = (stop_s - start_s) / duration
 
         try:
             while t < duration:
 
-                # alpha = k * t
-
                 t = time.time() - start_time
-
                 self._axes['arm'].signed_speed = front_linear_motion_arm_speed(t, k, start_s, distance)
-
+                t = time.time() - start_time
                 self._axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
-
+                t = time.time() - start_time
                 self._axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
 
-                if loop_count == 0:
-                    self._axes['arm'].run()
-                    self._axes['rotor'].run()
-                    self._axes['pan'].run()
-
-                loop_count += 1
-
-                # time.sleep(step_periode)
+                if stopped:
+                    for axis in axes:
+                        axis.run()
+                    stopped = False
 
         except SoftLimitViolationException:
             print('Warning: Aborting movement due to soft limit violation.')
             self.emergency_stop()
 
         else:  # everything went smoothly
-            self._axes['arm'].stop()
-            self._axes['rotor'].stop()
-            self._axes['pan'].stop()
-
-            sleep_time = loop_count * step_periode
-
-            print('Loop count was ' + str(loop_count))
+            for axis in axes:
+                axis.stop()
 
     def move_to_front_linear_start_position(self, distance, start_s):
         # move arm to the starting point
@@ -468,8 +452,6 @@ class MotionController:
         self._axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
         # execute
         self.parallel_run()
-
-    # Sequences
 
     def run_circular_sequence(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
@@ -573,10 +555,78 @@ class MotionController:
                         stopped[i] = True
 
         # if you are here, flag was cleared from outside
-        for i in range(len(axes)):
-            axes[i].stop()
+        for axis in axes:
+            axis.stop()
 
+    def rectilinear_joystick_control(self, flag):
 
+        axes = [self._axes['arm'], self._axes['rotor'], self._axes['pan']]
+
+        for axis in axes:
+            axis.mode = "speed_mode"
+            axis.ramp_type = "jerkfree"
+            axis.jerk = 20
+
+        stopped = True
+
+        while flag.is_set():
+
+            try:
+                # read the joystick
+                position_tuple = hardware_manager.joystick.get_position()
+                joystick_speed_setting = position_tuple[1]
+
+                if abs(joystick_speed_setting) > 0:  # joystick position demands movement
+
+                    # a new period of movement starts
+                    start_time = time.time()
+                    rotor_angle = self._axes['rotor'].absolute_position
+                    arm_extension = self._axes['arm'].absolute_position
+                    (distance, start_s) = rectilinear_camera_coordinates(rotor_angle, arm_extension)
+
+                    while abs(joystick_speed_setting) > 0 & flag.is_set():  # joystick position demands movement
+
+                        # update the joystick value inside the while loop
+                        position_tuple = hardware_manager.joystick.get_position()
+                        joystick_speed_setting = position_tuple[1]
+
+                        # k is the rectilinear speed of the camera in m/s
+                        k = joystick_speed_setting / 10
+
+                        t = time.time() - start_time
+
+                        self._axes['arm'].limited_speed = front_linear_motion_arm_speed(t, k, start_s, distance)
+                        self._axes['rotor'].limited_speed = front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+                        self._axes['pan'].limited_speed = - front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+
+                        if stopped:
+                            # start all axes
+                            for axis in axes:
+                                axis.run()
+                            stopped = False
+
+                else:  # joystick position is neutral
+                    if not stopped:
+                        # stop all axes
+                        for axis in axes:
+                            axis.stop()
+                        stopped = True
+
+            except SoftLimitViolationException:
+                print('Warning: Aborting movement due to soft limit violation.')
+                self.emergency_stop()
+
+        # if you are here, flag was cleared from outside
+        for axis in axes:
+            axis.stop()
+
+    def front_linear_mirror(self, duration):
+        """Do a front linear motion from where you are to the other side"""
+        rotor_angle = self._axes['rotor'].absolute_position
+        arm_extension = self._axes['arm'].absolute_position
+        (distance, start_s) = rectilinear_camera_coordinates(rotor_angle, arm_extension)
+        stop_s = - start_s
+        self.front_linear_motion(distance, duration, start_s, stop_s)
 
 
 # create the one motion controller which will be imported by other modules
