@@ -276,7 +276,7 @@ class PhysicalStepper(NanotecStepper):
         super().__init__(commander, io_card, stepper_config)
 
         self._si_unit_per_motor_revolution = self.stepper_config['siUnitPerMotorRevolution']
-        self._maximum_speed = self.stepper_config['maximumSpeed']
+        self.maximum_speed = self.stepper_config['maximumSpeed']
         self.joystick_speed = self.stepper_config['joystickSpeed']
 
     def travel(self, value):
@@ -295,9 +295,9 @@ class PhysicalStepper(NanotecStepper):
     direction = property(None, direction)
 
     def speed(self, value):
-        if value > self._maximum_speed:
+        if value > self.maximum_speed:
             # limit the speed according to config
-            value = min(value, self._maximum_speed)
+            value = min(value, self.maximum_speed)
             print('WARNING: Limiting speed of ' + self.name + ' axis!')
         # convert from absolute (always positive) physical speed in meters per second to (micro) steps per second of the motor
         self.step_speed = int(self.micro_steps_per_step * self.steps_per_motor_revolution * value / self._si_unit_per_motor_revolution)

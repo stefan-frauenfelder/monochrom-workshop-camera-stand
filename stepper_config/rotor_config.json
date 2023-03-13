@@ -2,7 +2,7 @@
     "name": "rotor",
     "motion": "rotational",
     "busAddress": 3,
-    "powerRelay": 3,
+    "powerRelay": 6,
     "stepsPerMotorRevolution": 200,
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 0.2513,

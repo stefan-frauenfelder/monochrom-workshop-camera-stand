@@ -11,7 +11,10 @@ class Hsm(object):
 
     def __init__(self, name):
 
-        logging.basicConfig(level=logging.INFO)
+        # logging.basicConfig(level=logging.INFO)
+
+        self.joystick_variant = 'polar'
+        self.sequencer_variant = 'front_linear'
 
         sequencer_states = [
             's_at_setup',
@@ -31,11 +34,31 @@ class Hsm(object):
             ignore_invalid_triggers=True,
             after_state_change='state_changed_updater')
 
+        # sequencer transitions
+        self.sequencer.add_transition(trigger='trig_proceed', source='s_at_setup', dest='s_moving_to_start')
+        self.sequencer.add_transition(trigger='trig_proceed', source='s_at_start', dest='s_moving_forward')
+        self.sequencer.add_transition(trigger='trig_proceed', source='s_at_target', dest='s_moving_to_setup')
+
+        self.sequencer.add_transition(trigger='trig_go_back', source='s_at_target', dest='s_moving_backwards')
+        self.sequencer.add_transition(trigger='trig_go_back', source='s_at_start', dest='s_moving_to_setup')
+
+        self.sequencer.add_transition(trigger='trig_reached', source='s_moving_to_start', dest='s_at_start')
+        self.sequencer.add_transition(trigger='trig_reached', source='s_moving_forward', dest='s_at_target')
+        self.sequencer.add_transition(trigger='trig_reached', source='s_moving_backwards', dest='s_at_start')
+        self.sequencer.add_transition(trigger='trig_reached', source='s_moving_to_setup', dest='s_at_setup')
+
+        # sequencer callbacks
+        self.sequencer.on_enter(state_name='s_at_setup', callback='cb_on_enter_s_at_setup')
+        self.sequencer.on_enter(state_name='s_at_start', callback='cb_on_enter_s_at_start')
+        self.sequencer.on_enter(state_name='s_at_target', callback='cb_on_enter_s_at_target')
+        self.sequencer.on_enter(state_name='s_moving_to_start', callback='cb_on_enter_s_moving_to_start')
+        self.sequencer.on_enter(state_name='s_moving_to_setup', callback='cb_on_enter_s_moving_to_setup')
+        self.sequencer.on_enter(state_name='s_moving_forward', callback='cb_on_enter_s_moving_forward')
+        self.sequencer.on_enter(state_name='s_moving_backwards', callback='cb_on_enter_s_moving_backwards')
+
         operational_states = [
             's_jog_control',
-            's_polar_joystick_control',
-            's_rectilinear_joystick_control',
-            's_mirror_slider',
+            's_joystick_control',
             {
                 'name': 's_sequencer_control',
                 'initial': 's_at_setup',
@@ -46,16 +69,14 @@ class Hsm(object):
         # add a (sub-) state machine
         self.operator = HierarchicalMachine(
             states=operational_states,
-            initial='s_polar_joystick_control',
+            initial='s_joystick_control',
             send_event=True,
             ignore_invalid_triggers=True,
             after_state_change='state_changed_updater')
 
         # mode transitions
         self.operator.add_transition(trigger='trig_jog', source='*', dest='s_jog_control')
-        self.operator.add_transition(trigger='trig_polar_joystick', source='*', dest='s_polar_joystick_control')
-        self.operator.add_transition(trigger='trig_rectilinear_joystick', source='*', dest='s_rectilinear_joystick_control')
-        self.operator.add_transition(trigger='trig_mirror_slider', source='*', dest='s_mirror_slider')
+        self.operator.add_transition(trigger='trig_joystick', source='*', dest='s_joystick_control')
         self.operator.add_transition(trigger='trig_sequencer', source='*', dest='s_sequencer_control')
 
         root_states = [
@@ -67,7 +88,7 @@ class Hsm(object):
             's_emergency_shutdown',
             {
                 'name': 's_operational',
-                'initial': 's_polar_joystick_control',
+                'initial': 's_joystick_control',
                 'children': self.operator
             }
         ]
@@ -98,17 +119,17 @@ class Hsm(object):
         self.system.on_enter(state_name='s_initializing', callback='initializing_sequence')
         self.system.on_enter(state_name='s_homing', callback='homing_sequence')
 
-        # polar joystick control
-        self.operator.on_enter(state_name='s_polar_joystick_control', callback='start_polar_joystick_control')
-        self.operator.on_exit(state_name='s_polar_joystick_control', callback='stop_polar_joystick_control')
-
-        # rectilinear joystick control
-        self.operator.on_enter(state_name='s_rectilinear_joystick_control', callback='start_rectilinear_joystick_control')
-        self.operator.on_exit(state_name='s_rectilinear_joystick_control', callback='stop_rectilinear_joystick_control')
+        # joystick control
+        self.operator.on_enter(state_name='s_joystick_control', callback='start_joystick_control')
+        self.operator.on_exit(state_name='s_joystick_control', callback='stop_joystick_control')
 
         # jog control
         self.operator.on_enter(state_name='s_jog_control', callback='start_jog_control')
         self.operator.on_exit(state_name='s_jog_control', callback='stop_jog_control')
+
+        # sequencer control
+        self.operator.on_enter(state_name='s_sequencer_control', callback='start_sequencer_control')
+        self.operator.on_exit(state_name='s_sequencer_control', callback='stop_sequencer_control')
 
         # emergency behavior
         self.system.on_enter(state_name='s_emergency_stop', callback='emergency_stop_sequence')
@@ -121,23 +142,52 @@ class Hsm(object):
             for callback in self.state_changed_callbacks:
                 callback()
 
-    def start_polar_joystick_control(self, event):
-        motion_controller.start_polar_joystick_control()
+    # sequencer callbacks
 
-    def stop_polar_joystick_control(self, event):
-        motion_controller.stop_continuous_control_thread()
+    def cb_on_enter_s_at_setup(self, event):
+        pass
 
-    def start_rectilinear_joystick_control(self, event):
-        motion_controller.start_rectilinear_joystick_control()
+    def cb_on_enter_s_at_start(self, event):
+        pass
 
-    def stop_rectilinear_joystick_control(self, event):
-        motion_controller.stop_continuous_control_thread()
+    def cb_on_enter_s_at_target(self, event):
+        pass
+
+    def cb_on_enter_s_moving_to_start(self, event):
+        motion_controller.move_to_front_linear_start_position(1.0)
+        self.trig_reached()
+
+    def cb_on_enter_s_moving_to_setup(self, event):
+        motion_controller.synchronized_move_to_marker(motion_controller.current_sequence_setup_marker)
+        self.trig_reached()
+
+    def cb_on_enter_s_moving_forward(self, event):
+        motion_controller.front_linear_motion(total_deflection=1.0)
+        self.trig_reached()
+
+    def cb_on_enter_s_moving_backwards(self, event):
+        self.trig_reached()
 
     def start_jog_control(self, event):
         motion_controller.start_jog_control()
 
     def stop_jog_control(self, event):
         motion_controller.stop_continuous_control_thread()
+
+    def start_joystick_control(self, event):
+        if self.joystick_variant == 'polar':
+            motion_controller.start_polar_joystick_control()
+        elif self.joystick_variant == 'rectilinear':
+            motion_controller.start_rectilinear_joystick_control()
+
+    def stop_joystick_control(self, event):
+        motion_controller.stop_continuous_control_thread()
+
+    def start_sequencer_control(self, event):
+        pass
+
+    def stop_sequencer_control(self, event):
+        pass
 
     def initializing_sequence(self, event):
         motion_controller.initialize_steppers()

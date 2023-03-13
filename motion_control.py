@@ -33,7 +33,6 @@ class MotionController:
         # _axes are empty for now and are created upon user request
         self._axes = None
 
-
         self._wheel = hardware_manager.wheel
 
         # set up the hardware opto-isolated input and relay outputs cards
@@ -50,6 +49,15 @@ class MotionController:
         self.start_marker = {}
         self.target_marker = {}
 
+        self.current_sequence_setup_marker = {}
+        self.current_sequence_start_marker = {}
+        self.current_sequence_target_marker = {}
+
+        self.front_linear_distance = None
+
+        self.user_speed = 0.0
+
+
     def get_marker(self):
         marker = {}
         for key in self._axes:
@@ -59,20 +67,37 @@ class MotionController:
             marker[key] = axis.absolute_position
         return marker
 
-    def synchronized_move_from_here_to_target(self, duration):
-        # set current position to start position
-        self.start_marker = self.get_marker()
-        # start synchronized move from start to target
-        for key in self._axes:
+    def synchronized_move_to_marker(self, marker):
+        """ perform a synchronized move from the current location to the marker """
+        # get some empty dicts for later
+        duration = {}
+        distance = {}
+        start_location = {}
+        common_duration = 0
+
+        # only a subset of axis may have to move, so go through keys in marker
+        for key in marker:
             # unpack
             axis: LocatedStepper = self._axes[key]
-            start_location = self.start_marker[key]
-            target_location = self.target_marker[key]
-            # calculate speed based on duration and distance
-            distance = target_location - start_location
-            speed = distance / duration
+            start_location[key] = axis.absolute_position
+            # calculate distance and minimal duration
+            distance[key] = marker[key] - start_location[key]
+            duration[key] = abs(distance[key] / axis.maximum_speed)
+
+        # find the longest duration
+        for key in duration:
+            common_duration = max(common_duration, duration[key])
+
+        # calculate speeds based on common duration
+        for key in marker:
+            # unpack
+            axis: LocatedStepper = self._axes[key]
+            # calculate speed based on distance and common duration
+            speed = distance[key] / common_duration
             # arm the axis
-            axis.goto_absolute_position(position=target_location, speed=speed)
+            axis.jerk = 5
+            axis.goto_absolute_position(position=marker[key], speed=speed)
+
         # start all axes
         self.parallel_run()
 
@@ -403,9 +428,54 @@ class MotionController:
 
             print('Sleep time was ' + str(sleep_time))
 
-    def front_linear_motion(self, distance, duration, start_s, stop_s):
+    def speed_scaling(self, nominal_speed, t, duration, acceleration=0.05):
+        if nominal_speed < 0:
+            acceleration = -acceleration
+        acceleration_duration = nominal_speed / acceleration
+        if t < acceleration_duration:  # during acceleration
+            return acceleration * t
+        else:  # during steady speed
+            return nominal_speed
+
+    # front linear motion methods
+
+    def move_to_front_linear_start_position(self, total_deflection):
+
+        # the current pan angle defines the axis of perpendicularity and is used to 'zero' the rotor
+        deviation_angle = self._axes['pan'].absolute_position
+        self._axes['rotor'].absolute_position = - deviation_angle
+
+        # using the new rotor origin, store the marker of the setup position
+        self.current_sequence_setup_marker = self.get_marker()
+
+        # calculate the perpendicular distance of the camera from the origin
+        arm_extension = self._axes['arm'].absolute_position
+        distance, current_deflection = rectilinear_camera_coordinates(- deviation_angle, arm_extension)
+        # store for the target move
+        self.front_linear_distance = distance
+
+        # calculate the start position using distance and the given total_deflection
+        deflection_from_center = total_deflection / 2.0
+        arm_start_position = front_linear_motion_arm_position(deflection_from_center, distance)
+        rotor_starting_angle = front_linear_motion_rotor_pan_angle(deflection_from_center, distance)
+
+        # store this in the start marker
+        self.current_sequence_start_marker = {'arm': arm_start_position,
+                                              'rotor': rotor_starting_angle,
+                                              'pan': - rotor_starting_angle}
+
+        # move
+        self.synchronized_move_to_marker(self.current_sequence_start_marker)
+
+    def front_linear_motion(self, total_deflection):
+
+        nominal_speed = self.user_speed
 
         axes = [self._axes['arm'], self._axes['rotor'], self._axes['pan']]
+        distance = self.front_linear_distance
+        nominal_duration = abs(total_deflection / nominal_speed)
+        # initial deflection is positive, move forward is from left to right
+        initial_deflection = total_deflection / 2.0
 
         for axis in axes:
             axis.mode = "speed_mode"
@@ -415,17 +485,30 @@ class MotionController:
         start_time = time.time()
         stopped = True
         t = 0
-        k = (stop_s - start_s) / duration
+        # speed needs to be negative for move from left to right
+        nominal_speed = - total_deflection / nominal_duration
+
+        # acceleration for k-scaling
+        acceleration = 0.05
+
+        # calculate how much longer the move will take to reach the same distance with k-scaling (lower avg speed)
+        acceleration_duration = abs(nominal_speed / acceleration)
+        duration = nominal_duration + acceleration_duration / 2.0
 
         try:
             while t < duration:
 
                 t = time.time() - start_time
-                self._axes['arm'].signed_speed = front_linear_motion_arm_speed(t, k, start_s, distance)
+                speed = self.speed_scaling(nominal_speed, t, duration, acceleration)
+                self._axes['arm'].signed_speed = front_linear_motion_arm_speed(t, speed, initial_deflection, distance)
+
                 t = time.time() - start_time
-                self._axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+                speed = self.speed_scaling(nominal_speed, t, duration, acceleration)
+                self._axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, speed, initial_deflection, distance)
+
                 t = time.time() - start_time
-                self._axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, k, start_s, distance)
+                speed = self.speed_scaling(nominal_speed, t, duration, acceleration)
+                self._axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, speed, initial_deflection, distance)
 
                 if stopped:
                     for axis in axes:
@@ -440,18 +523,7 @@ class MotionController:
             for axis in axes:
                 axis.stop()
 
-    def move_to_front_linear_start_position(self, distance, start_s):
-        # move arm to the starting point
-        arm_start_position = front_linear_motion_arm_position(start_s, distance)
-        self._axes['arm'].goto_absolute_position(position=arm_start_position, speed=default_linear_speed)
-        # move rotor to starting point
-        rotor_starting_angle = front_linear_motion_rotor_pan_angle(start_s, distance)
-        self._axes['rotor'].goto_absolute_position(position=rotor_starting_angle, speed=default_rotor_speed)
-        # move pan to starting point
-        pan_starting_angle = - rotor_starting_angle
-        self._axes['pan'].goto_absolute_position(position=pan_starting_angle, speed=default_pan_tilt_speed)
-        # execute
-        self.parallel_run()
+    # orbiter motion methods
 
     def run_circular_sequence(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
@@ -464,14 +536,6 @@ class MotionController:
         time.sleep(0.2)
 
         self.back_up()
-
-    def run_front_linear_sequence(self, distance, duration, step_frequency, start_s, stop_s):
-
-        self.move_to_front_linear_start_position(distance, start_s)
-        time.sleep(0.2)
-        self.front_linear_motion(distance, duration, step_frequency, start_s, stop_s)
-        time.sleep(0.2)
-        self.go_neutral()
 
     def jog(self, flag):
         # preferences
@@ -539,7 +603,7 @@ class MotionController:
         while flag.is_set():
             # read the joystick
             position_tuple = hardware_manager.joystick.get_position()
-            joystick_position = [position_tuple[1], position_tuple[0], 0.0]
+            joystick_position = [position_tuple[1], position_tuple[0], - position_tuple[2]]
 
             for i in range(len(axes)):
                 if abs(joystick_position[i]) > 0:  # joystick position demands movement
@@ -619,14 +683,6 @@ class MotionController:
         # if you are here, flag was cleared from outside
         for axis in axes:
             axis.stop()
-
-    def front_linear_mirror(self, duration):
-        """Do a front linear motion from where you are to the other side"""
-        rotor_angle = self._axes['rotor'].absolute_position
-        arm_extension = self._axes['arm'].absolute_position
-        (distance, start_s) = rectilinear_camera_coordinates(rotor_angle, arm_extension)
-        stop_s = - start_s
-        self.front_linear_motion(distance, duration, start_s, stop_s)
 
 
 # create the one motion controller which will be imported by other modules

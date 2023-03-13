@@ -23,6 +23,13 @@ JOG_WHEEL_B_GPIO = 21
 IO_EXPANDER_INT_PIN = 26
 # port extension cards
 SEQUENT_INTERRUPT_GPIO = 5
+# joystick pushbutton
+JOYSTICK_BUTTON_GPIO = 6
+# soft keys
+SOFT_KEY_1 = 22
+SOFT_KEY_2 = 23
+SOFT_KEY_3 = 24
+SOFT_KEY_4 = 25
 
 
 class HardwareManager:
@@ -34,6 +41,7 @@ class HardwareManager:
         # Rotary encoder jog wheel
         self.wheel = RotaryEncoder(self.gpio, a_gpio=JOG_WHEEL_A_GPIO, b_gpio=JOG_WHEEL_B_GPIO)
         self.wheel.setup_rotary(min=0, max=1000, scale=1, debounce=0, rotary_callback=self.rotary_encoder_callback)
+        self.wheel_callbacks = []
 
         # create the camera interface instance to control the camera
         self.cam = ZCamE2()
@@ -49,10 +57,10 @@ class HardwareManager:
         # set up the hardware opto-isolated input and relay outputs cards
         self.sequent_ports = SequentPorts(SEQUENT_INTERRUPT_GPIO)
 
-        # create the RGB button instance (on I2C)
-        self.rgb_button_light = RgbButton()
-        self.rgb_button_light.begin()
-        self.rgb_button_light.set_rgb_color(RgbButton.e_blue)
+        # # create the RGB button instance (on I2C)
+        # self.rgb_button_light = RgbButton()
+        # self.rgb_button_light.begin()
+        # self.rgb_button_light.set_rgb_color(RgbButton.e_blue)
 
         self.rgb_button_callbacks = []
 
@@ -66,6 +74,20 @@ class HardwareManager:
         # wait for 10 milliseconds before reacting to the interrupt to debounce
         self.gpio.set_glitch_filter(IO_EXPANDER_INT_PIN, 10000)
         self.gpio.callback(IO_EXPANDER_INT_PIN, pigpio.FALLING_EDGE, self.io_expander_general_callback)
+
+        # joystick button
+        self.gpio.set_glitch_filter(JOYSTICK_BUTTON_GPIO, 10000)
+        self.gpio.callback(JOYSTICK_BUTTON_GPIO, pigpio.EITHER_EDGE, self.cb_joystick_button)
+
+        # soft keys
+        self.gpio.set_glitch_filter(SOFT_KEY_1, 10000)
+        self.gpio.callback(SOFT_KEY_1, pigpio.EITHER_EDGE, self.cb_soft_key_1)
+        self.gpio.set_glitch_filter(SOFT_KEY_2, 10000)
+        self.gpio.callback(SOFT_KEY_2, pigpio.EITHER_EDGE, self.cb_soft_key_2)
+        self.gpio.set_glitch_filter(SOFT_KEY_3, 10000)
+        self.gpio.callback(SOFT_KEY_3, pigpio.EITHER_EDGE, self.cb_soft_key_3)
+        self.gpio.set_glitch_filter(SOFT_KEY_4, 10000)
+        self.gpio.callback(SOFT_KEY_4, pigpio.EITHER_EDGE, self.cb_soft_key_4)
 
         # maintain a state of the rotary selector value for external access
         self.rotary_selector_value = 0
@@ -85,10 +107,6 @@ class HardwareManager:
         self.io_expander_values = new_values
         # call the updaters
         self.update_rotary_selector_value(values=new_values, changed_bits=changed_bits)
-        self.update_joystick_button(values=new_values, changed_bits=changed_bits)
-        self.update_rgb_button(values=new_values, changed_bits=changed_bits)
-        self.update_a_button(values=new_values, changed_bits=changed_bits)
-        self.update_b_button(values=new_values, changed_bits=changed_bits)
 
     def update_rotary_selector_value(self, values, changed_bits):
         # only update if one of the rotary values changed
@@ -112,37 +130,13 @@ class HardwareManager:
         for callback in self.rotary_selector_callbacks:
             callback(value)
 
-    def update_joystick_button(self, values, changed_bits):
-        mask = 0x10
-        # only update if the button bit changed
-        if changed_bits & mask:
-            self.cb_joystick_button(not bool(values & mask))  # zero means pressed
-
-    def update_rgb_button(self, values, changed_bits):
-        mask = 0x20
-        # only update if the button bit changed
-        if changed_bits & mask:
-            self.cb_rgb_button(bool(values & mask))  # one means pressed
-
-    def update_a_button(self, values, changed_bits):
-        mask = 0x40
-        # only update if the button bit changed
-        if changed_bits & mask:
-            self.cb_a_button(not bool(values & mask))  # zero means pressed
-
-    def update_b_button(self, values, changed_bits):
-        mask = 0x80
-        # only update if the button bit changed
-        if changed_bits & mask:
-            self.cb_b_button(not bool(values & mask))  # zero means pressed
-
-    def cb_joystick_button(self, value):
-        if value:
+    def cb_joystick_button(self, gpio_pin, _level, _tick):
+        if _level:
             print('Hardware: joystick button pressed.')
         else:
             print('Hardware: joystick button released.')
         for callback in self.joystick_button_callbacks:
-            callback(value)
+            callback(_level)
 
     def cb_rgb_button(self, value):
         if value:
@@ -152,20 +146,34 @@ class HardwareManager:
         for callback in self.rgb_button_callbacks:
             callback(value)
 
-    def cb_a_button(self, value):
-        if value:
-            print('Hardware: A button pressed.')
+    def cb_soft_key_1(self, gpio_pin, _level, _tick):
+        if _level:
+            print('Hardware: Soft key 1 pressed.')
         else:
-            print('Hardware: A button released.')
+            print('Hardware: Soft key 1 released.')
 
-    def cb_b_button(self, value):
-        if value:
-            print('Hardware: B button pressed.')
+    def cb_soft_key_2(self, gpio_pin, _level, _tick):
+        if _level:
+            print('Hardware: Soft key 2 pressed.')
         else:
-            print('Hardware: B button released.')
+            print('Hardware: Soft key 2 released.')
+
+    def cb_soft_key_3(self, gpio_pin, _level, _tick):
+        if _level:
+            print('Hardware: Soft key 3 pressed.')
+        else:
+            print('Hardware: Soft key 3 released.')
+
+    def cb_soft_key_4(self, gpio_pin, _level, _tick):
+        if _level:
+            print('Hardware: Soft key 4 pressed.')
+        else:
+            print('Hardware: Soft key 4 released.')
 
     def rotary_encoder_callback(self, counter):
-        print('Counter value: ', counter)
+        print('Hardware: Wheel value changed to: ', counter)
+        for callback in self.wheel_callbacks:
+            callback(counter)
 
 
 # create an instance

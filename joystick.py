@@ -10,13 +10,14 @@ adc_from_outside = ADS1115()
 
 class Joystick:
 
-    def __init__(self, adc_ports=(0, 1)):
+    def __init__(self, adc_ports=(0, 1, 2)):
 
         self.adc = adc_from_outside
         self.adc_ports = adc_ports
         self.x = adc_ports[0]
         self.y = adc_ports[1]
-        self.dead_zone = 0.05  # what portion of the whole range is still considered neutral
+        self.z = adc_ports[2]
+        self.dead_zone = 0.03  # what portion of the whole range is still considered neutral
 
         try:
             self.calibration = json.loads(open("joystick_calibration.json").read())
@@ -27,20 +28,21 @@ class Joystick:
     def get_voltages(self):
         x_voltage = self.adc.read_voltage(self.x)
         y_voltage = self.adc.read_voltage(self.y)
+        z_voltage = self.adc.read_voltage(self.z)
         # return as a tuple
-        return x_voltage, y_voltage
+        return x_voltage, y_voltage, z_voltage
 
     def get_position(self):
 
         # initialize output as a list
-        position = [0, 0]
+        position = [0, 0, 0]
 
         if self.calibration:
 
             # read the current voltage values
             voltages = self.get_voltages()
 
-            for axis in range(2):
+            for axis in range(3):
 
                 # access the single axis
                 value = voltages[axis]
@@ -109,6 +111,8 @@ class Joystick:
         x_max = x_min
         y_min = initial_neutral[1]
         y_max = y_min
+        z_min = initial_neutral[2]
+        z_max = z_min
 
         start_time = time.time()
         duration = 8             # seconds
@@ -118,15 +122,17 @@ class Joystick:
             # update time
             t = time.time() - start_time
             # read new values
-            (x, y) = self.get_voltages()
+            (x, y, z) = self.get_voltages()
             # get extremes
             x_min = min(x_min, x)
             x_max = max(x_max, x)
             y_min = min(y_min, y)
             y_max = max(y_max, y)
+            z_min = min(z_min, z)
+            z_max = max(z_max, z)
             # sample with approx. 20Hz
             time.sleep(0.05)
-            print(str(x) + ', ' + str(y))
+            print(str(x) + ', ' + str(y) + ', ' + str(z))
 
         print('Now Release the Joystick to its neutral position again...')
 
@@ -140,6 +146,7 @@ class Joystick:
 
         x_neutral = (initial_neutral[0] + end_neutral[0]) / 2
         y_neutral = (initial_neutral[1] + end_neutral[1]) / 2
+        z_neutral = (initial_neutral[2] + end_neutral[2]) / 2
 
         self.calibration = [{
             'minimum_voltage': x_min,
@@ -149,6 +156,10 @@ class Joystick:
             'minimum_voltage': y_min,
             'neutral_voltage': y_neutral,
             'maximum_voltage': y_max
+        }, {
+            'minimum_voltage': z_min,
+            'neutral_voltage': z_neutral,
+            'maximum_voltage': z_max
         }]
 
         with open('joystick_calibration.json', 'w') as file:

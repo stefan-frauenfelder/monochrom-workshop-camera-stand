@@ -2,7 +2,7 @@
     "name": "tilt",
     "motion": "rotational",
     "busAddress": 5,
-    "powerRelay": 5,
+    "powerRelay": 8,
     "stepsPerMotorRevolution": 200,
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 6.283,

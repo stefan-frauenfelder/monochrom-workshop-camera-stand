@@ -2,7 +2,7 @@
     "name": "pan",
     "motion": "rotational",
     "busAddress": 4,
-    "powerRelay": 4,
+    "powerRelay": 7,
     "stepsPerMotorRevolution": 200,
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 6.283,
