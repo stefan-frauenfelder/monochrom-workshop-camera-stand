@@ -12,7 +12,6 @@ from zcame2 import ZCamE2
 from rotary import RotaryEncoder
 from ch423 import Ch423
 from rgbbutton import RgbButton
-from display import Display
 
 # The digital pins of raspberry pi in BCM code
 
@@ -44,10 +43,6 @@ class HardwareManager:
         # create a joystick
         self.joystick = Joystick()
         self.joystick_button_callbacks = []
-
-        # create the small, external display on the controller
-        self.display = Display()
-        self.display.update()
 
         # set up the hardware opto-isolated input and relay outputs cards
         self.sequent_ports = SequentPorts(SEQUENT_INTERRUPT_GPIO)

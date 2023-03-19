@@ -2,8 +2,7 @@ import sys
 import time
 import pigpio
 
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5 import uic
+from PyQt5 import QtCore, QtGui, QtWidgets, uic
 
 from hardware import hardware_manager
 from hsm import hsm
@@ -30,7 +29,7 @@ class HmiParameterSet:
 class Hmi(QtWidgets.QMainWindow):
 
     # all parameters of the HMI are collected in a dictionary
-    # dictionary items are parameter lists which is a list of HmiParameters
+    # its items are parameter sets
     parameter_space = {}
 
     def __init__(self):
@@ -80,16 +79,9 @@ class Hmi(QtWidgets.QMainWindow):
             'QPushButton:disabled {color: #666; border-color: #666}'
         )
 
-        # self.speed_value.setStyleSheet('QLabel{color: #fff}')
-
-
-
         self.update()
 
         self.mode = 0
-        self.mode_label = 'Uninitialized'
-
-        self.display = hardware_manager.display
 
         # add a callback to the HSM to be notified about state changes
         hsm.state_changed_callbacks.append(self.on_hsm_state_change)
@@ -228,7 +220,6 @@ class Hmi(QtWidgets.QMainWindow):
         # jog mode
         if hsm.is_s_operational.s_jog_control():
             self.mode_label = 'Jogging'
-            self.update_display()
 
         # joystick modes
         elif hsm.is_s_operational.s_joystick_control():
@@ -236,7 +227,6 @@ class Hmi(QtWidgets.QMainWindow):
                 self.mode_label = 'Polar Joystick'
             elif hsm.joystick_variant == 'rectilinear':
                 self.mode_label = 'Rect. Joystick'
-            self.update_display()
 
         # sequencer modes
         elif hsm.is_s_operational.s_sequencer_control(allow_substates=True):
@@ -246,7 +236,6 @@ class Hmi(QtWidgets.QMainWindow):
                 self.mode_label = 'Front Linear'
             elif hsm.sequencer_variant == 'orbiter':
                 self.mode_label = 'Orbiter'
-            self.update_display()
 
             if hsm.is_s_operational.s_sequencer_control.s_at_setup():
                 # wheel is used to dial in the duration of the slide
@@ -254,12 +243,6 @@ class Hmi(QtWidgets.QMainWindow):
         # other
         else:
             self.mode_label = 'Other'
-            self.update_display()
-
-    def update_display(self):
-        self.display.clear()
-        self.display.mode(self.mode_label)
-        self.display.show()
 
     def cb_wheel_counter_change(self, counter):
         index = self.current_parameter_set.selected_index
