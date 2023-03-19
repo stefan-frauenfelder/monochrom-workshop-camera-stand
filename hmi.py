@@ -7,6 +7,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from hardware import hardware_manager
 from hsm import hsm
 from motion_control import motion_controller
+import mainwindow
 
 
 class HmiParameter:
@@ -26,7 +27,7 @@ class HmiParameterSet:
         self.selected_index = 0
 
 
-class Hmi(QtWidgets.QMainWindow):
+class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
 
     # all parameters of the HMI are collected in a dictionary
     # its items are parameter sets
@@ -35,7 +36,9 @@ class Hmi(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
-        uic.loadUi("mainwindow.ui", self)
+        # this method is inherited from mainwindow.Ui_MainWindow and loads all the UI elements
+        self.setupUi(self)
+        # uic.loadUi("mainwindow.ui", self)  # this was the former line, before UI from python code
 
         self.setWindowTitle("Camera Motion Control")
 
@@ -51,7 +54,7 @@ class Hmi(QtWidgets.QMainWindow):
         self.estop_button.clicked.connect(hsm.trig_emergency_shutdown)
         self.sys_exit_button.clicked.connect(sys.exit)
 
-        # styling
+        # Styling of graphical user interface
 
         self.tab_bar.setStyleSheet(
             'QTabWidget::pane {border: 0px #000}'
@@ -78,6 +81,8 @@ class Hmi(QtWidgets.QMainWindow):
 
         self.mode = 0
 
+        # Callback registration for static callbacks
+
         # add a callbacks to the HSM to be notified about state changes
         hsm.before_any_state_change_callbacks.append(self.before_hsm_state_change)
         hsm.after_any_state_change_callbacks.append(self.after_hsm_state_change)
@@ -88,6 +93,8 @@ class Hmi(QtWidgets.QMainWindow):
         hardware_manager.wheel_callbacks.append(self.cb_wheel_counter_change)
 
         hardware_manager.soft_key_3_callbacks.append(self.switch_parameter)
+
+        # Parameterization
 
         sequencer_parameter_set = HmiParameterSet()
         sequencer_parameter_set.parameter.append(HmiParameter(
@@ -111,9 +118,8 @@ class Hmi(QtWidgets.QMainWindow):
         # add the set to the space
         self.parameter_space['sequencer_parameter'] = sequencer_parameter_set
 
+        # Todo: fix this
         self.current_parameter_set: HmiParameterSet = self.parameter_space['sequencer_parameter']
-
-        self.speed = 0.0
 
     def switch_parameter(self, level=1):
         if level:  # button is pressed
