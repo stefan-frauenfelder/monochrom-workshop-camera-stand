@@ -1,19 +1,20 @@
 import sys
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from hmi import View, Controller
+from hmi import Hmi, Hmi
 
 if __name__ == '__main__':
 
     try:
         # create an application
         app = QtWidgets.QApplication(sys.argv)
-        # create the main window of the app (QMainWindow)
-        view = View()
-        # create the controller which handles manual user inputs
-        controller = Controller()
-        # show the view in maximized size
-        view.showMaximized()
+        # set default font on app-level
+        default_font = QtGui.QFont('NN1050', 20)
+        app.setFont(default_font)
+        # create the human/machine interface which handles user inputs and the display (window of the app (QMainWindow)
+        hmi = Hmi()
+        # show the view (not in maximized size)
+        hmi.showFullScreen()  # alt: .showMaximized()
         # launch the app
         app.exec_()
 

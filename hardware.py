@@ -25,11 +25,6 @@ IO_EXPANDER_INT_PIN = 26
 SEQUENT_INTERRUPT_GPIO = 5
 # joystick pushbutton
 JOYSTICK_BUTTON_GPIO = 6
-# soft keys
-SOFT_KEY_1 = 22
-SOFT_KEY_2 = 23
-SOFT_KEY_3 = 24
-SOFT_KEY_4 = 25
 
 
 class HardwareManager:
@@ -79,19 +74,13 @@ class HardwareManager:
         self.gpio.set_glitch_filter(JOYSTICK_BUTTON_GPIO, 10000)
         self.gpio.callback(JOYSTICK_BUTTON_GPIO, pigpio.EITHER_EDGE, self.cb_joystick_button)
 
-        # soft keys
-        self.gpio.set_glitch_filter(SOFT_KEY_1, 10000)
-        self.gpio.callback(SOFT_KEY_1, pigpio.EITHER_EDGE, self.cb_soft_key_1)
-        self.gpio.set_glitch_filter(SOFT_KEY_2, 10000)
-        self.gpio.callback(SOFT_KEY_2, pigpio.EITHER_EDGE, self.cb_soft_key_2)
-        self.gpio.set_glitch_filter(SOFT_KEY_3, 10000)
-        self.gpio.callback(SOFT_KEY_3, pigpio.EITHER_EDGE, self.cb_soft_key_3)
-        self.gpio.set_glitch_filter(SOFT_KEY_4, 10000)
-        self.gpio.callback(SOFT_KEY_4, pigpio.EITHER_EDGE, self.cb_soft_key_4)
-
         # maintain a state of the rotary selector value for external access
         self.rotary_selector_value = 0
         self.rotary_selector_callbacks = []
+
+        self.soft_key_1_callbacks = []
+        self.soft_key_2_callbacks = []
+        self.soft_key_3_callbacks = []
 
         # call the general update function once at startup
         self.io_expander_general_callback(0, 0, 0)
@@ -107,6 +96,9 @@ class HardwareManager:
         self.io_expander_values = new_values
         # call the updaters
         self.update_rotary_selector_value(values=new_values, changed_bits=changed_bits)
+        self.update_soft_key_1(values=new_values, changed_bits=changed_bits)
+        self.update_soft_key_2(values=new_values, changed_bits=changed_bits)
+        self.update_soft_key_3(values=new_values, changed_bits=changed_bits)
 
     def update_rotary_selector_value(self, values, changed_bits):
         # only update if one of the rotary values changed
@@ -124,6 +116,24 @@ class HardwareManager:
             # subtract 2, for whatever reason
             new_value -= 2
             self.cb_rotary_selector_switched(value=new_value)
+
+    def update_soft_key_1(self, values, changed_bits):
+        mask = 0x10
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_soft_key_1(bool(values & mask))  # one means pressed
+
+    def update_soft_key_2(self, values, changed_bits):
+        mask = 0x20
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_soft_key_2(bool(values & mask))  # one means pressed
+
+    def update_soft_key_3(self, values, changed_bits):
+        mask = 0x40
+        # only update if the button bit changed
+        if changed_bits & mask:
+            self.cb_soft_key_3(bool(values & mask))  # one means pressed
 
     def cb_rotary_selector_switched(self, value):
         print('Hardware: rotary selector is switched to  ' + str(value) + '.')
@@ -146,29 +156,32 @@ class HardwareManager:
         for callback in self.rgb_button_callbacks:
             callback(value)
 
-    def cb_soft_key_1(self, gpio_pin, _level, _tick):
+    def cb_soft_key_1(self, _level):
         if _level:
             print('Hardware: Soft key 1 pressed.')
         else:
             print('Hardware: Soft key 1 released.')
+        if self.soft_key_1_callbacks:
+            for callback in self.soft_key_1_callbacks:
+                callback(_level)
 
-    def cb_soft_key_2(self, gpio_pin, _level, _tick):
+    def cb_soft_key_2(self, _level):
         if _level:
             print('Hardware: Soft key 2 pressed.')
         else:
             print('Hardware: Soft key 2 released.')
+        if self.soft_key_2_callbacks:
+            for callback in self.soft_key_2_callbacks:
+                callback(_level)
 
-    def cb_soft_key_3(self, gpio_pin, _level, _tick):
+    def cb_soft_key_3(self, _level):
         if _level:
             print('Hardware: Soft key 3 pressed.')
         else:
             print('Hardware: Soft key 3 released.')
-
-    def cb_soft_key_4(self, gpio_pin, _level, _tick):
-        if _level:
-            print('Hardware: Soft key 4 pressed.')
-        else:
-            print('Hardware: Soft key 4 released.')
+        if self.soft_key_3_callbacks:
+            for callback in self.soft_key_3_callbacks:
+                callback(_level)
 
     def rotary_encoder_callback(self, counter):
         print('Hardware: Wheel value changed to: ', counter)

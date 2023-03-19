@@ -17,7 +17,7 @@ class Joystick:
         self.x = adc_ports[0]
         self.y = adc_ports[1]
         self.z = adc_ports[2]
-        self.dead_zone = 0.03  # what portion of the whole range is still considered neutral
+        self.dead_zone = 0.04  # what portion of the whole range is still considered neutral
 
         try:
             self.calibration = json.loads(open("joystick_calibration.json").read())

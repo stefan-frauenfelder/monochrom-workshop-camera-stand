@@ -1,3 +1,4 @@
+import sys
 import time
 import pigpio
 
@@ -9,7 +10,28 @@ from hsm import hsm
 from motion_control import motion_controller
 
 
-class View(QtWidgets.QMainWindow):
+class HmiParameter:
+    def __init__(self, name, labels, target, value_label, value_range, value_increment, value_fraction_digits):
+        self.name = name
+        self.labels = labels
+        self.target = target
+        self.value_label = value_label
+        self.value_range = value_range
+        self.value_increment = value_increment
+        self.value_fraction_digits = value_fraction_digits
+
+
+class HmiParameterSet:
+    def __init__(self):
+        self.parameter = []
+        self.selected_index = 0
+
+
+class Hmi(QtWidgets.QMainWindow):
+
+    # all parameters of the HMI are collected in a dictionary
+    # dictionary items are parameter lists which is a list of HmiParameters
+    parameter_space = {}
 
     def __init__(self):
         super().__init__()
@@ -25,12 +47,109 @@ class View(QtWidgets.QMainWindow):
 
         self.homing_button.clicked.connect(hsm.trig_home)
 
+        self.soft_key_C.clicked.connect(self.switch_parameter)
+
         # utility buttons
         self.joystick_calibration_button.clicked.connect(hardware_manager.joystick.calibrate)
         # self.quick_test_button.clicked.connect(self.quick_test)
         self.estop_button.clicked.connect(hsm.trig_emergency_shutdown)
+        self.sys_exit_button.clicked.connect(sys.exit)
+
+        # styling
+
+        self.tab_bar.setStyleSheet(
+            'QTabWidget::pane {border: 0px #000}'
+            'QTabBar {background-color: #000}'
+            'QTabBar::tab {height: 78px; width: 50px; color: #bbb; background-color: #222; border:2px solid #444; border-top-left-radius: 20px; border-bottom-left-radius: 20px}'
+            'QTabBar::tab:selected {background-color: #000; border: 2px solid #fff; border-right: 0px #000}'
+            'QTabBar::tab:!selected {color: #999; margin-left: 7px; width: 43px; border-right-color: #fff}')
+
+        self.setStyleSheet(
+            'QMainWindow {background-color: #000}'
+            'QTabWidget {background-color: #000}'
+            'QLabel {background-color: #000; color: #999}'
+            'QPushButton {'
+            'background-color: #000;'
+            'color: #fff;'
+            'border-style: outset;'
+            'border-width: 2px;'
+            'border-color: #ddd;'
+            'border-radius: 10px;'
+            '}'
+            'QPushButton:pressed {border-style: inset; background-color: #222;}'
+            'QPushButton:disabled {color: #666; border-color: #666}'
+        )
+
+        # self.speed_value.setStyleSheet('QLabel{color: #fff}')
+
+
 
         self.update()
+
+        self.mode = 0
+        self.mode_label = 'Uninitialized'
+
+        self.display = hardware_manager.display
+
+        # add a callback to the HSM to be notified about state changes
+        hsm.state_changed_callbacks.append(self.on_hsm_state_change)
+
+        hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
+        hardware_manager.joystick_button_callbacks.append(self.cb_joystick_button_change)
+        hardware_manager.rgb_button_callbacks.append(self.cb_rgb_button_change)
+        hardware_manager.wheel_callbacks.append(self.cb_wheel_counter_change)
+
+        hardware_manager.soft_key_3_callbacks.append(self.switch_parameter)
+
+        sequencer_parameter_set = HmiParameterSet()
+        sequencer_parameter_set.parameter.append(HmiParameter(
+            name='speed',
+            labels=[self.speed_label, self.speed_value, self.speed_unit],
+            target=motion_controller.user_speed,
+            value_label=self.speed_value,
+            value_range=(0.05, 1.0),
+            value_increment=0.05,
+            value_fraction_digits=2
+        ))
+        sequencer_parameter_set.parameter.append(HmiParameter(
+            name='deflection',
+            labels=[self.deflection_label, self.deflection_value, self.deflection_unit],
+            target=motion_controller.front_linear_distance,
+            value_label=self.deflection_value,
+            value_range=(0.01, 1.0),
+            value_increment=0.01,
+            value_fraction_digits=2
+        ))
+        # add the set to the space
+        self.parameter_space['sequencer_parameter'] = sequencer_parameter_set
+
+        self.current_parameter_set: HmiParameterSet = self.parameter_space['sequencer_parameter']
+
+        self.speed = 0.0
+
+    def switch_parameter(self, level=1):
+        if level:  # button is pressed
+            num_param_in_set = len(self.current_parameter_set.parameter)
+            previous_selected_index = self.current_parameter_set.selected_index
+            self.current_parameter_set.selected_index = (previous_selected_index + 1) % num_param_in_set
+            for i in range(num_param_in_set):
+                hmi_parameter: HmiParameter = self.current_parameter_set.parameter[i]
+                if i == self.current_parameter_set.selected_index:
+                    # change labels of parameters to white
+                    for label in hmi_parameter.labels:
+                        label.setStyleSheet('QLabel{color: #fff}')
+                    self.configure_wheel_for_parameter(hmi_parameter)
+                elif i == previous_selected_index:
+                    for label in hmi_parameter.labels:
+                        label.setStyleSheet('QLabel{color: #999}')
+
+    def configure_wheel_for_parameter(self, param):
+        parameter: HmiParameter = param
+        wheel = hardware_manager.wheel
+        wheel.min = parameter.value_range[0]
+        wheel.max = parameter.value_range[1]
+        wheel.scale = parameter.value_increment
+        wheel.counter = parameter.target
 
     def closeEvent(self, event):
         print("Window close command issued, passing e_exit event to FSM.")
@@ -47,47 +166,27 @@ class View(QtWidgets.QMainWindow):
         else:
             self.homing_button.setEnabled(False)
 
-        self.speed_display.text = str(motion_controller.user_speed) + ' m/s'
-
-
-class Controller:
-
-    def __init__(self):
-
-        self.mode = 0
-        self.mode_label = 'Uninitialized'
-
-        self.display = hardware_manager.display
-
-        # add a callback to the HSM to be notified about state changes
-        hsm.state_changed_callbacks.append(self.on_hsm_state_change)
-
-        hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
-        hardware_manager.joystick_button_callbacks.append(self.cb_joystick_button_change)
-        hardware_manager.rgb_button_callbacks.append(self.cb_rgb_button_change)
-        hardware_manager.wheel_callbacks.append(self.cb_wheel_counter_change)
-
-        self.speed = 0.0
-
     def cb_rotary_selector_switch(self, new_mode):
         print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
         if new_mode == 0:
             hsm.trig_jog()
+            self.tab_bar.setCurrentIndex(0)
         elif new_mode == 1:
             hsm.joystick_variant = 'polar'
             hsm.trig_joystick()
+            self.tab_bar.setCurrentIndex(1)
         elif new_mode == 2:
-            hsm.joystick_variant = 'rectilinear'
-            hsm.trig_joystick()
+            hsm.sequencer_variant = 'a_b'
+            hsm.trig_sequencer()
+            self.tab_bar.setCurrentIndex(2)
         elif new_mode == 3:
             hsm.sequencer_variant = 'a_b'
             hsm.trig_sequencer()
+            self.tab_bar.setCurrentIndex(3)
         elif new_mode == 4:
-            hsm.sequencer_variant = 'front_linear'
+            hsm.sequencer_variant = 'a_b'
             hsm.trig_sequencer()
-        elif new_mode == 5:
-            hsm.sequencer_variant = 'orbiter'
-            hsm.trig_sequencer()
+            self.tab_bar.setCurrentIndex(4)
         # update
         self.mode = new_mode
 
@@ -151,13 +250,7 @@ class Controller:
 
             if hsm.is_s_operational.s_sequencer_control.s_at_setup():
                 # wheel is used to dial in the duration of the slide
-                wheel = hardware_manager.wheel
-                wheel.scale = 0.01
-                wheel.min = 0.01
-                wheel.counter = 0.1
-                wheel.max = 0.3
-
-
+                pass
         # other
         else:
             self.mode_label = 'Other'
@@ -169,5 +262,8 @@ class Controller:
         self.display.show()
 
     def cb_wheel_counter_change(self, counter):
-        motion_controller.user_speed = counter
-        print('Speed is now: ' + str(counter))
+        index = self.current_parameter_set.selected_index
+        parameter: HmiParameter = self.current_parameter_set.parameter[index]
+        fraction_digits = parameter.value_fraction_digits
+        parameter.target = round(counter, fraction_digits)
+        parameter.value_label.setText(f"{counter:.{fraction_digits}f}")
