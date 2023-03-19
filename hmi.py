@@ -39,9 +39,6 @@ class Hmi(QtWidgets.QMainWindow):
 
         self.setWindowTitle("Camera Motion Control")
 
-        # add a callback to the HSN to be notified about state changes
-        hsm.state_changed_callbacks.append(self.update)
-
         self.initialize_button.clicked.connect(hsm.trig_initialize)
 
         self.homing_button.clicked.connect(hsm.trig_home)
@@ -79,12 +76,11 @@ class Hmi(QtWidgets.QMainWindow):
             'QPushButton:disabled {color: #666; border-color: #666}'
         )
 
-        self.update()
-
         self.mode = 0
 
-        # add a callback to the HSM to be notified about state changes
-        hsm.state_changed_callbacks.append(self.on_hsm_state_change)
+        # add a callbacks to the HSM to be notified about state changes
+        hsm.before_any_state_change_callbacks.append(self.before_hsm_state_change)
+        hsm.after_any_state_change_callbacks.append(self.after_hsm_state_change)
 
         hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
         hardware_manager.joystick_button_callbacks.append(self.cb_joystick_button_change)
@@ -152,35 +148,29 @@ class Hmi(QtWidgets.QMainWindow):
     def quick_test(self):
         pass
 
-    def update(self):
-        if hsm.is_s_initialized():
-            self.homing_button.setEnabled(True)
-        else:
-            self.homing_button.setEnabled(False)
-
-    def cb_rotary_selector_switch(self, new_mode):
-        print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(new_mode))
-        if new_mode == 0:
+    def cb_rotary_selector_switch(self, index):
+        print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(index))
+        if index == 0:
             hsm.trig_jog()
             self.tab_bar.setCurrentIndex(0)
-        elif new_mode == 1:
+        elif index == 1:
             hsm.joystick_variant = 'polar'
             hsm.trig_joystick()
             self.tab_bar.setCurrentIndex(1)
-        elif new_mode == 2:
+        elif index == 2:
             hsm.sequencer_variant = 'a_b'
             hsm.trig_sequencer()
             self.tab_bar.setCurrentIndex(2)
-        elif new_mode == 3:
+        elif index == 3:
             hsm.sequencer_variant = 'a_b'
             hsm.trig_sequencer()
             self.tab_bar.setCurrentIndex(3)
-        elif new_mode == 4:
+        elif index == 4:
             hsm.sequencer_variant = 'a_b'
             hsm.trig_sequencer()
             self.tab_bar.setCurrentIndex(4)
         # update
-        self.mode = new_mode
+        self.mode = index
 
     def cb_joystick_button_change(self, value):
         # only if button is pressed
@@ -214,7 +204,10 @@ class Hmi(QtWidgets.QMainWindow):
             elif hsm.is_s_operational.s_sequencer_control(allow_substates=True):
                 hsm.trig_proceed()
 
-    def on_hsm_state_change(self):
+    def before_hsm_state_change(self, state_name):
+        pass
+
+    def after_hsm_state_change(self, state_name):
         # different behavior depending on current mode
 
         # jog mode
@@ -243,6 +236,11 @@ class Hmi(QtWidgets.QMainWindow):
         # other
         else:
             self.mode_label = 'Other'
+
+        if hsm.is_s_initialized():
+            self.homing_button.setEnabled(True)
+        else:
+            self.homing_button.setEnabled(False)
 
     def cb_wheel_counter_change(self, counter):
         index = self.current_parameter_set.selected_index

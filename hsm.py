@@ -100,7 +100,8 @@ class Hsm(object):
             initial='s_uninitialized',
             send_event=True,
             ignore_invalid_triggers=True,
-            after_state_change='state_changed_updater')
+            before_state_change='cb_before_any_state_change',
+            after_state_change='cb_after_any_state_change')
 
         # top level transitions
         self.system.add_transition(trigger='trig_initialize', source='s_uninitialized', dest='s_initializing')
@@ -111,7 +112,8 @@ class Hsm(object):
         self.system.add_transition(trigger='trig_emergency_shutdown', source='*', dest='s_emergency_shutdown')
 
         self.name = name
-        self.state_changed_callbacks = []
+        self.after_any_state_change_callbacks = []
+        self.before_any_state_change_callbacks = []
 
         # definition of callbacks
 
@@ -135,12 +137,19 @@ class Hsm(object):
         self.system.on_enter(state_name='s_emergency_stop', callback='emergency_stop_sequence')
         self.system.on_enter(state_name='s_emergency_shutdown', callback='emergency_shutdown_sequence')
 
-    def state_changed_updater(self, event):
-        # state_name =
-        print('State changed.')
-        if self.state_changed_callbacks:
-            for callback in self.state_changed_callbacks:
-                callback()
+    def cb_after_any_state_change(self, event):
+        state_string = self.state
+        print('State changed to ' + state_string + '.')
+        if self.after_any_state_change_callbacks:
+            for callback in self.after_any_state_change_callbacks:
+                callback(state_string)
+
+    def cb_before_any_state_change(self, event):
+        state_string = self.state
+        print('State changing from ' + state_string + '.')
+        if self.before_any_state_change_callbacks:
+            for callback in self.before_any_state_change_callbacks:
+                callback(state_string)
 
     # sequencer callbacks
 
