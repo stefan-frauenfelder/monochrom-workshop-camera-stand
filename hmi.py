@@ -27,6 +27,44 @@ class HmiParameterSet:
         self.selected_index = 0
 
 
+class Tab:
+
+    tab_bar: QtWidgets.QTabWidget = None
+
+    def __init__(self, display_name, short_display_name, slot=None, parameter_set=None, hsm_trigger=None):
+        self.display_name = display_name
+        self.short_display_name = short_display_name
+        self.slot = slot  # range: 0...4
+        self.parameter_set: HmiParameterSet = parameter_set
+        self.hsm_trigger = hsm_trigger
+
+        self._active = False
+
+    def activate(self):
+        # can only activate if self has a slot
+        if self.is_enabled:
+            if self.hsm_trigger:
+                # call the trigger function which puts the HSM in the required state
+                self.hsm_trigger()
+            self._active = True
+            # tell the (parent) QT tab bar to make this tab visible/active
+            self.tab_bar.setCurrentIndex(self.slot)
+
+    def deactivate(self):
+        self._active = False
+
+    @property
+    def is_active(self):
+        return self._active
+
+    @property
+    def is_enabled(self):
+        return self.slot is not None
+
+    def disable(self):
+        self.slot = None
+
+
 class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
 
     # all parameters of the HMI are collected in a dictionary
@@ -38,7 +76,6 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
 
         # this method is inherited from mainwindow.Ui_MainWindow and loads all the UI elements
         self.setupUi(self)
-        # uic.loadUi("mainwindow.ui", self)  # this was the former line, before UI from python code
 
         self.setWindowTitle("Camera Motion Control")
 
@@ -81,6 +118,8 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
 
         self.mode = 0
 
+        self.tabs = []
+
         # Callback registration for static callbacks
 
         # add a callbacks to the HSM to be notified about state changes
@@ -118,17 +157,54 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         # add the set to the space
         self.parameter_space['sequencer_parameter'] = sequencer_parameter_set
 
-        # Todo: fix this
-        self.current_parameter_set: HmiParameterSet = self.parameter_space['sequencer_parameter']
+        # Create the tabs
+
+        Tab.tab_bar = self.tab_bar  # class property, set once for all tabs
+
+        self.tabs.append(Tab(
+            display_name='Jogging',
+            short_display_name='JOG',
+            slot=0,
+            parameter_set=None,
+            hsm_trigger=hsm.trig_jog
+        ))
+        self.tabs.append(Tab(
+            display_name='Joystick',
+            short_display_name='STICK',
+            slot=1,
+            parameter_set=None,
+            hsm_trigger=hsm.trig_joystick
+        ))
+        self.tabs.append(Tab(
+            display_name='A-B',
+            short_display_name='A-B',
+            slot=2,
+            parameter_set=None,
+            hsm_trigger=hsm.trig_sequencer
+        ))
+        self.tabs.append(Tab(
+            display_name='Sequencer',
+            short_display_name='SEQ',
+            slot=3,
+            parameter_set=sequencer_parameter_set,
+            hsm_trigger=hsm.trig_sequencer
+        ))
+        self.tabs.append(Tab(
+            display_name='Settings',
+            short_display_name='SYS',
+            slot=4,
+            parameter_set=None,
+            hsm_trigger=hsm.trig_sequencer
+        ))
 
     def switch_parameter(self, level=1):
         if level:  # button is pressed
-            num_param_in_set = len(self.current_parameter_set.parameter)
-            previous_selected_index = self.current_parameter_set.selected_index
-            self.current_parameter_set.selected_index = (previous_selected_index + 1) % num_param_in_set
+            num_param_in_set = len(self.active_parameter_set.parameter)
+            previous_selected_index = self.active_parameter_set.selected_index
+            self.active_parameter_set.selected_index = (previous_selected_index + 1) % num_param_in_set
             for i in range(num_param_in_set):
-                hmi_parameter: HmiParameter = self.current_parameter_set.parameter[i]
-                if i == self.current_parameter_set.selected_index:
+                hmi_parameter: HmiParameter = self.active_parameter_set.parameter[i]
+                if i == self.active_parameter_set.selected_index:
                     # change labels of parameters to white
                     for label in hmi_parameter.labels:
                         label.setStyleSheet('QLabel{color: #fff}')
@@ -145,6 +221,18 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         wheel.scale = parameter.value_increment
         wheel.counter = parameter.target
 
+    @property
+    def active_tab(self):
+        for tab in self.tabs:
+            if tab.is_active:
+                return tab
+        return None
+
+    @property
+    def active_parameter_set(self):
+        if self.active_tab:
+            return self.active_tab.parameter_set
+
     def closeEvent(self, event):
         print("Window close command issued, passing e_exit event to FSM.")
         hsm.trig_emergency_shutdown()
@@ -155,28 +243,14 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         pass
 
     def cb_rotary_selector_switch(self, index):
-        print('Controller: switched from mode ' + str(self.mode) +  ' to mode ' + str(index))
-        if index == 0:
-            hsm.trig_jog()
-            self.tab_bar.setCurrentIndex(0)
-        elif index == 1:
-            hsm.joystick_variant = 'polar'
-            hsm.trig_joystick()
-            self.tab_bar.setCurrentIndex(1)
-        elif index == 2:
-            hsm.sequencer_variant = 'a_b'
-            hsm.trig_sequencer()
-            self.tab_bar.setCurrentIndex(2)
-        elif index == 3:
-            hsm.sequencer_variant = 'a_b'
-            hsm.trig_sequencer()
-            self.tab_bar.setCurrentIndex(3)
-        elif index == 4:
-            hsm.sequencer_variant = 'a_b'
-            hsm.trig_sequencer()
-            self.tab_bar.setCurrentIndex(4)
-        # update
-        self.mode = index
+        print('Controller: switched to mode ' + str(index))
+        # deactivate the currently active tab (only one must be active at all time)
+        if self.active_tab:
+            self.active_tab.deactivate()
+        for tab in self.tabs:
+            if tab.slot == index:
+                tab.activate()  # this triggers the HSM state transition and updates shows the tab in the GUI
+                break
 
     def cb_joystick_button_change(self, value):
         # only if button is pressed
@@ -249,8 +323,9 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             self.homing_button.setEnabled(False)
 
     def cb_wheel_counter_change(self, counter):
-        index = self.current_parameter_set.selected_index
-        parameter: HmiParameter = self.current_parameter_set.parameter[index]
-        fraction_digits = parameter.value_fraction_digits
-        parameter.target = round(counter, fraction_digits)
-        parameter.value_label.setText(f"{counter:.{fraction_digits}f}")
+        if self.active_parameter_set:
+            index = self.active_parameter_set.selected_index
+            parameter: HmiParameter = self.active_parameter_set.parameter[index]
+            fraction_digits = parameter.value_fraction_digits
+            parameter.target = round(counter, fraction_digits)
+            parameter.value_label.setText(f"{counter:.{fraction_digits}f}")
