@@ -53,10 +53,16 @@ class MotionController:
         self.current_sequence_start_marker = {}
         self.current_sequence_target_marker = {}
 
-        self.front_linear_distance = None
+        # parameters
 
-        self.user_speed = 0.0
+        # the resulting total speed of the camera
+        self.camera_speed = [0.1]
 
+        # the total length of the target path the camera travels during the target motion, from start to stop, including acceleration distance
+        self.total_target_path_length = [0.1]
+
+        # the perpendicular distance of the camera path from the robot origin
+        self.perpendicular_target_path_distance_from_origin = [0.5]
 
     def get_marker(self):
         marker = {}
@@ -100,6 +106,10 @@ class MotionController:
 
         # start all axes
         self.parallel_run()
+
+    def reset_rotor_reference(self):
+        rotor: LocatedStepper = self._axes['rotor']
+        rotor.set_position_offset_to_current_position()
 
     def toggle_jog_axis(self):
         # stop jogging to switch axis
@@ -291,26 +301,6 @@ class MotionController:
         for thread in threads:
             thread.join()
 
-    def two_simple_motions(self):
-
-        # move arm to the starting point
-        self._axes['arm'].goto_absolute_position(position=0.5, speed=default_linear_speed)
-        self._axes['arm'].blocking_run()
-
-        self._axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
-        self._axes['lift'].blocking_run()
-
-        input("Press Enter to continue...")
-
-        self._axes['arm'].goto_absolute_position(position=0.7, speed=default_linear_speed)
-        self._axes['lift'].goto_absolute_position(position=1.2, speed=default_linear_speed)
-
-        input("Press Enter to continue...")
-
-        self.parallel_run()
-
-        input("Press Enter to continue...")
-
     def move_to_start_angle(self, distance, radius, start_angle):
 
         # lift the pen from the paper
@@ -340,32 +330,6 @@ class MotionController:
         # lower the pen to the paper
         self._axes['lift'].goto_absolute_position(position=0.851, speed=default_linear_speed)
         self._axes['lift'].blocking_run()
-
-    def back_up(self):
-
-        # lift the pen from the paper
-        self._axes['lift'].goto_absolute_position(position=0.87, speed=default_linear_speed)
-        self._axes['lift'].blocking_run()
-
-        self._axes['lift'].goto_absolute_position(position=1, speed=default_linear_speed)
-        # go to neutral
-        self._axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self._axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self._axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
-        # retract the arm
-        self._axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
-        # execute
-        self.parallel_run()
-
-    def go_neutral(self):
-        # go to neutral
-        self._axes['tilt'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self._axes['pan'].goto_absolute_position(position=0, speed=default_pan_tilt_speed)
-        self._axes['rotor'].goto_absolute_position(position=0, speed=default_rotor_speed)
-        # retract the arm
-        self._axes['arm'].goto_absolute_position(position=0.3, speed=default_linear_speed)
-        # execute
-        self.parallel_run()
 
     def circular_motion(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
 
@@ -439,7 +403,7 @@ class MotionController:
 
     # front linear motion methods
 
-    def move_to_front_linear_start_position(self, total_deflection):
+    def move_to_front_linear_start_position(self):
 
         # the current pan angle defines the axis of perpendicularity and is used to 'zero' the rotor
         deviation_angle = self._axes['pan'].absolute_position
@@ -452,10 +416,10 @@ class MotionController:
         arm_extension = self._axes['arm'].absolute_position
         distance, current_deflection = rectilinear_camera_coordinates(- deviation_angle, arm_extension)
         # store for the target move
-        self.front_linear_distance = distance
+        self.perpendicular_target_path_distance_from_origin[0] = distance
 
-        # calculate the start position using distance and the given total_deflection
-        deflection_from_center = total_deflection / 2.0
+        # calculate the start position using distance and the given path length
+        deflection_from_center = self.total_target_path_length[0] / 2.0
         arm_start_position = front_linear_motion_arm_position(deflection_from_center, distance)
         rotor_starting_angle = front_linear_motion_rotor_pan_angle(deflection_from_center, distance)
 
@@ -467,15 +431,17 @@ class MotionController:
         # move
         self.synchronized_move_to_marker(self.current_sequence_start_marker)
 
-    def front_linear_motion(self, total_deflection):
+    def front_linear_motion(self):
 
-        nominal_speed = self.user_speed
+        nominal_speed = self.camera_speed[0]
 
         axes = [self._axes['arm'], self._axes['rotor'], self._axes['pan']]
-        distance = self.front_linear_distance
-        nominal_duration = abs(total_deflection / nominal_speed)
+        distance = self.perpendicular_target_path_distance_from_origin[0]
+        path_length = self.total_target_path_length[0]
+
+        nominal_duration = abs(path_length / nominal_speed)
         # initial deflection is positive, move forward is from left to right
-        initial_deflection = total_deflection / 2.0
+        initial_deflection = path_length / 2.0
 
         for axis in axes:
             axis.mode = "speed_mode"
@@ -486,7 +452,7 @@ class MotionController:
         stopped = True
         t = 0
         # speed needs to be negative for move from left to right
-        nominal_speed = - total_deflection / nominal_duration
+        nominal_speed = - path_length / nominal_duration
 
         # acceleration for k-scaling
         acceleration = 0.05
@@ -524,18 +490,6 @@ class MotionController:
                 axis.stop()
 
     # orbiter motion methods
-
-    def run_circular_sequence(self, distance, radius, duration, step_frequency, start_angle, stop_angle):
-
-        self.move_to_start_angle(distance, radius, start_angle)
-
-        time.sleep(0.2)
-
-        self.circular_motion(distance, radius, duration, step_frequency, start_angle, stop_angle)
-
-        time.sleep(0.2)
-
-        self.back_up()
 
     def jog(self, flag):
         # preferences

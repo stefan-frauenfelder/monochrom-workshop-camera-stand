@@ -24,7 +24,8 @@ IO_EXPANDER_INT_PIN = 26
 SEQUENT_INTERRUPT_GPIO = 5
 # joystick pushbutton
 JOYSTICK_BUTTON_GPIO = 6
-
+# RGB 0 pushbutton
+RGB_0_BUTTON_GPIO = 24
 
 class HardwareManager:
 
@@ -47,12 +48,12 @@ class HardwareManager:
         # set up the hardware opto-isolated input and relay outputs cards
         self.sequent_ports = SequentPorts(SEQUENT_INTERRUPT_GPIO)
 
-        # # create the RGB button instance (on I2C)
-        # self.rgb_button_light = RgbButton()
-        # self.rgb_button_light.begin()
-        # self.rgb_button_light.set_rgb_color(RgbButton.e_blue)
+        # create the RGB button instance (on I2C)
+        self.rgb_0_button_light = RgbButton()
+        self.rgb_0_button_light.begin()
+        self.rgb_0_button_light.set_rgb_color(RgbButton.e_blue)
 
-        self.rgb_button_callbacks = []
+        self.rgb_0_button_callbacks = []
 
         # create the I/O-expander
         self.io_expander = Ch423()
@@ -67,15 +68,21 @@ class HardwareManager:
 
         # joystick button
         self.gpio.set_glitch_filter(JOYSTICK_BUTTON_GPIO, 10000)
+        self.gpio.set_pull_up_down(JOYSTICK_BUTTON_GPIO, pigpio.PUD_UP)
         self.gpio.callback(JOYSTICK_BUTTON_GPIO, pigpio.EITHER_EDGE, self.cb_joystick_button)
+
+        # RGB 0 button
+        self.gpio.set_glitch_filter(RGB_0_BUTTON_GPIO, 10000)
+        self.gpio.set_pull_up_down(RGB_0_BUTTON_GPIO, pigpio.PUD_DOWN)
+        self.gpio.callback(RGB_0_BUTTON_GPIO, pigpio.EITHER_EDGE, self.cb_rgb_0_button)
 
         # maintain a state of the rotary selector value for external access
         self.rotary_selector_value = 0
         self.rotary_selector_callbacks = []
 
-        self.soft_key_1_callbacks = []
-        self.soft_key_2_callbacks = []
-        self.soft_key_3_callbacks = []
+        self.soft_key_1_callbacks = [None]  # Only one, mutable
+        self.soft_key_2_callbacks = [None]  # Only one, mutable
+        self.soft_key_3_callbacks = [None]  # Only one, mutable
 
         # call the general update function once at startup
         self.io_expander_general_callback(0, 0, 0)
@@ -136,47 +143,50 @@ class HardwareManager:
             callback(value)
 
     def cb_joystick_button(self, gpio_pin, _level, _tick):
-        if _level:
+        if not _level:
             print('Hardware: joystick button pressed.')
         else:
             print('Hardware: joystick button released.')
         for callback in self.joystick_button_callbacks:
-            callback(_level)
+            callback(not _level)
 
-    def cb_rgb_button(self, value):
-        if value:
-            print('Hardware: RGB button pressed.')
+    def cb_rgb_0_button(self, gpio_pin, _level, _tick):
+        if _level:
+            print('Hardware: RGB 0 button pressed.')
         else:
-            print('Hardware: RGB button released.')
-        for callback in self.rgb_button_callbacks:
-            callback(value)
+            print('Hardware: RGB 0 button released.')
+        for callback in self.rgb_0_button_callbacks:
+            callback(_level)
 
     def cb_soft_key_1(self, _level):
         if _level:
             print('Hardware: Soft key 1 pressed.')
+            if self.soft_key_1_callbacks:
+                for callback in self.soft_key_1_callbacks:
+                    if callback:
+                        callback()
         else:
             print('Hardware: Soft key 1 released.')
-        if self.soft_key_1_callbacks:
-            for callback in self.soft_key_1_callbacks:
-                callback(_level)
 
     def cb_soft_key_2(self, _level):
         if _level:
             print('Hardware: Soft key 2 pressed.')
+            if self.soft_key_2_callbacks:
+                for callback in self.soft_key_2_callbacks:
+                    if callback:
+                        callback()
         else:
             print('Hardware: Soft key 2 released.')
-        if self.soft_key_2_callbacks:
-            for callback in self.soft_key_2_callbacks:
-                callback(_level)
 
     def cb_soft_key_3(self, _level):
         if _level:
             print('Hardware: Soft key 3 pressed.')
+            if self.soft_key_3_callbacks:
+                for callback in self.soft_key_3_callbacks:
+                    if callback:
+                        callback()
         else:
             print('Hardware: Soft key 3 released.')
-        if self.soft_key_3_callbacks:
-            for callback in self.soft_key_3_callbacks:
-                callback(_level)
 
     def rotary_encoder_callback(self, counter):
         print('Hardware: Wheel value changed to: ', counter)

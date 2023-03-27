@@ -1,6 +1,7 @@
 import logging
 
 from motion_control import motion_controller
+from hardware import hardware_manager
 
 from transitions.extensions import HierarchicalMachine
 from transitions.extensions.nesting import NestedState
@@ -163,7 +164,7 @@ class Hsm(object):
         pass
 
     def cb_on_enter_s_moving_to_start(self, event):
-        motion_controller.move_to_front_linear_start_position(1.0)
+        motion_controller.move_to_front_linear_start_position()
         self.trig_reached()
 
     def cb_on_enter_s_moving_to_setup(self, event):
@@ -171,7 +172,9 @@ class Hsm(object):
         self.trig_reached()
 
     def cb_on_enter_s_moving_forward(self, event):
-        motion_controller.front_linear_motion(total_deflection=1.0)
+        hardware_manager.cam.start_recording()
+        motion_controller.front_linear_motion()
+        hardware_manager.cam.stop_recording()
         self.trig_reached()
 
     def cb_on_enter_s_moving_backwards(self, event):

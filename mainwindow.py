@@ -21,54 +21,86 @@ class Ui_MainWindow(object):
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName("verticalLayout")
+
         self.tab_bar = QtWidgets.QTabWidget(self.centralwidget)
         self.tab_bar.setEnabled(True)
+
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.tab_bar.sizePolicy().hasHeightForWidth())
         self.tab_bar.setSizePolicy(sizePolicy)
+
         self.tab_bar.setTabPosition(QtWidgets.QTabWidget.TabPosition.West)
         self.tab_bar.setTabShape(QtWidgets.QTabWidget.TabShape.Rounded)
         self.tab_bar.setObjectName("tab_bar")
+
         self.jog_tab = QtWidgets.QWidget()
         self.jog_tab.setObjectName("jog_tab")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.jog_tab)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.tab_bar.addTab(self.jog_tab, "")
+
         self.joystick_tab = QtWidgets.QWidget()
         self.joystick_tab.setObjectName("joystick_tab")
+
+        self.soft_key_A_joystick_tab = QtWidgets.QPushButton(self.joystick_tab)
+        self.soft_key_A_joystick_tab.setGeometry(QtCore.QRect(20, 410, 160, 50))
+        self.soft_key_A_joystick_tab.setObjectName("soft_key_A_joystick_tab")
+
+        self.soft_key_B_joystick_tab = QtWidgets.QPushButton(self.joystick_tab)
+        self.soft_key_B_joystick_tab.setGeometry(QtCore.QRect(210, 410, 160, 50))
+        self.soft_key_B_joystick_tab.setObjectName("soft_key_B_joystick_tab")
+
+        self.soft_key_C_joystick_tab = QtWidgets.QPushButton(self.joystick_tab)
+        self.soft_key_C_joystick_tab.setGeometry(QtCore.QRect(400, 410, 160, 50))
+        self.soft_key_C_joystick_tab.setObjectName("soft_key_C_joystick_tab")
+
         self.tab_bar.addTab(self.joystick_tab, "")
+
         self.ab_tab = QtWidgets.QWidget()
         self.ab_tab.setObjectName("ab_tab")
         self.tab_bar.addTab(self.ab_tab, "")
+
         self.sequence_tab = QtWidgets.QWidget()
         self.sequence_tab.setObjectName("sequence_tab")
-        self.soft_key_A = QtWidgets.QPushButton(self.sequence_tab)
-        self.soft_key_A.setGeometry(QtCore.QRect(20, 420, 161, 51))
-        self.soft_key_A.setObjectName("soft_key_A")
-        self.soft_key_C = QtWidgets.QPushButton(self.sequence_tab)
-        self.soft_key_C.setGeometry(QtCore.QRect(403, 420, 161, 51))
-        self.soft_key_C.setObjectName("soft_key_C")
-        self.soft_key_B = QtWidgets.QPushButton(self.sequence_tab)
-        self.soft_key_B.setGeometry(QtCore.QRect(210, 420, 161, 51))
-        self.soft_key_B.setObjectName("soft_key_B")
+
+        self.soft_key_A_sequence_tab = QtWidgets.QPushButton(self.sequence_tab)
+        self.soft_key_A_sequence_tab.setGeometry(QtCore.QRect(20, 410, 160, 50))
+        self.soft_key_A_sequence_tab.setObjectName("soft_key_A_sequence_tab")
+
+        self.soft_key_B_sequence_tab = QtWidgets.QPushButton(self.sequence_tab)
+        self.soft_key_B_sequence_tab.setGeometry(QtCore.QRect(210, 410, 160, 50))
+        self.soft_key_B_sequence_tab.setObjectName("soft_key_B_sequence_tab")
+
+        self.soft_key_C_sequence_tab = QtWidgets.QPushButton(self.sequence_tab)
+        self.soft_key_C_sequence_tab.setGeometry(QtCore.QRect(400, 410, 160, 50))
+        self.soft_key_C_sequence_tab.setObjectName("soft_key_C_sequence_tab")
+
+
+
         self.gridLayoutWidget = QtWidgets.QWidget(self.sequence_tab)
         self.gridLayoutWidget.setGeometry(QtCore.QRect(169, 200, 271, 80))
         self.gridLayoutWidget.setObjectName("gridLayoutWidget")
+
         self.parameters = QtWidgets.QGridLayout(self.gridLayoutWidget)
         self.parameters.setContentsMargins(0, 0, 0, 0)
         self.parameters.setObjectName("parameters")
+
         self.speed_value = QtWidgets.QLabel(self.gridLayoutWidget)
         self.speed_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
         self.speed_value.setObjectName("speed_value")
         self.parameters.addWidget(self.speed_value, 1, 1, 1, 1)
+
         self.speed_label = QtWidgets.QLabel(self.gridLayoutWidget)
         self.speed_label.setObjectName("speed_label")
+
         self.parameters.addWidget(self.speed_label, 1, 0, 1, 1)
+
         self.speed_unit = QtWidgets.QLabel(self.gridLayoutWidget)
         self.speed_unit.setObjectName("speed_unit")
         self.parameters.addWidget(self.speed_unit, 1, 2, 1, 1)
+
         self.deflection_label = QtWidgets.QLabel(self.gridLayoutWidget)
         self.deflection_label.setObjectName("deflection_label")
         self.parameters.addWidget(self.deflection_label, 0, 0, 1, 1)
@@ -79,35 +111,40 @@ class Ui_MainWindow(object):
         self.deflection_unit = QtWidgets.QLabel(self.gridLayoutWidget)
         self.deflection_unit.setObjectName("deflection_unit")
         self.parameters.addWidget(self.deflection_unit, 0, 2, 1, 1)
+
         self.tab_bar.addTab(self.sequence_tab, "")
+
+
         self.settings_tab = QtWidgets.QWidget()
         self.settings_tab.setObjectName("settings_tab")
+
         self.initialize_button = QtWidgets.QPushButton(self.settings_tab)
         self.initialize_button.setGeometry(QtCore.QRect(30, 30, 321, 71))
         self.initialize_button.setObjectName("initialize_button")
+
         self.homing_button = QtWidgets.QPushButton(self.settings_tab)
         self.homing_button.setEnabled(False)
         self.homing_button.setGeometry(QtCore.QRect(30, 110, 321, 71))
         self.homing_button.setObjectName("homing_button")
+
         self.joystick_calibration_button = QtWidgets.QPushButton(self.settings_tab)
         self.joystick_calibration_button.setGeometry(QtCore.QRect(400, 190, 161, 71))
         self.joystick_calibration_button.setObjectName("joystick_calibration_button")
+
         self.estop_button = QtWidgets.QPushButton(self.settings_tab)
         self.estop_button.setGeometry(QtCore.QRect(400, 270, 161, 71))
-        font = QtGui.QFont()
-        font.setFamily("NN1050")
-        font.setPointSize(26)
-        font.setBold(True)
-        self.estop_button.setFont(font)
-        self.estop_button.setFlat(False)
         self.estop_button.setObjectName("estop_button")
+
         self.quick_test_button = QtWidgets.QPushButton(self.settings_tab)
         self.quick_test_button.setGeometry(QtCore.QRect(400, 110, 161, 71))
         self.quick_test_button.setObjectName("quick_test_button")
+
         self.sys_exit_button = QtWidgets.QPushButton(self.settings_tab)
         self.sys_exit_button.setGeometry(QtCore.QRect(399, 350, 161, 71))
         self.sys_exit_button.setObjectName("sys_exit_button")
+
         self.tab_bar.addTab(self.settings_tab, "")
+
         self.verticalLayout.addWidget(self.tab_bar)
         MainWindow.setCentralWidget(self.centralwidget)
 
@@ -120,10 +157,17 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.tab_bar.setTabText(self.tab_bar.indexOf(self.jog_tab), _translate("MainWindow", "JOG"))
         self.tab_bar.setTabText(self.tab_bar.indexOf(self.joystick_tab), _translate("MainWindow", "STICK"))
+
+        self.soft_key_A_joystick_tab.setText(_translate("MainWindow", "Mode"))
+        self.soft_key_B_joystick_tab.setText(_translate("MainWindow", "B"))
+        self.soft_key_C_joystick_tab.setText(_translate("MainWindow", "Rot 0"))
+
         self.tab_bar.setTabText(self.tab_bar.indexOf(self.ab_tab), _translate("MainWindow", "A-B"))
-        self.soft_key_A.setText(_translate("MainWindow", "A"))
-        self.soft_key_C.setText(_translate("MainWindow", "SELECT"))
-        self.soft_key_B.setText(_translate("MainWindow", "B"))
+
+        self.soft_key_A_sequence_tab.setText(_translate("MainWindow", "A"))
+        self.soft_key_B_sequence_tab.setText(_translate("MainWindow", "B"))
+        self.soft_key_C_sequence_tab.setText(_translate("MainWindow", "SELECT"))
+
         self.speed_value.setText(_translate("MainWindow", "0.1"))
         self.speed_label.setText(_translate("MainWindow", "SPEED"))
         self.speed_unit.setText(_translate("MainWindow", "m/s"))
