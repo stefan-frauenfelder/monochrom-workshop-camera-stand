@@ -2,6 +2,8 @@ import time
 import threading
 import math
 from enum import Enum
+import json
+
 
 import sequent_ports
 
@@ -444,14 +446,14 @@ class OrientedStepper(PhysicalStepper):
             else:
                 raise ValueError('Direction of rotation to find origin needs to be either negative or positive.')
 
-            # assumption: rotational axis is started up in about neutral position
+            # assumption: rotational axis is started in negative range w.r.t. the neutral position
 
             # backup from neutral startup position by a quarter rotation
-            self.mode = "relative_positioning"
-            self.speed = 0.2
-            self.signed_travel = sign_modifier * -math.pi / 4
-            print('Backing up...')
-            self.blocking_run()
+            # self.mode = "relative_positioning"
+            # self.speed = 0.2
+            # self.signed_travel = sign_modifier * -math.pi / 4
+            # print('Backing up...')
+            # self.blocking_run()
 
             # activate the appropriate mode
 
@@ -565,6 +567,8 @@ class FiniteStepper(OrientedStepper):
 
         self._is_limited = False
 
+        self._calibration = None
+
         near_soft_limit_port = self.stepper_config['nearSoftLimitPort']
         far_soft_limit_port = self.stepper_config['farSoftLimitPort']
 
@@ -664,6 +668,15 @@ class FiniteStepper(OrientedStepper):
 
         print('Safe travel of ' + self.name + ' axis is ' + str(self._safe_travel_range) + '.')
         print('Soft limit guard of ' + self.name + ' axis activated.')
+
+        # save calibration
+        self._calibration = {
+            'near_soft_limit_location': self._near_soft_limit_location,
+            'far_soft_limit_location': self._far_soft_limit_location
+        }
+        file_name = self.name + '_calibration.json'
+        with open(file_name, 'w') as file:
+            json.dump(self._calibration, file, indent=4)
 
     def set_fake_rotational_stepper_limits(self):
 
