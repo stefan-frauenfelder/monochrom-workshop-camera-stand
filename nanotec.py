@@ -69,6 +69,7 @@ class NanotecStepper():
         "factory_reset": b'~',
         "phase_current": b'i',
         "phase_current_still_stand": b'r',
+        "error_correction": b'U',
     }
 
     _defaults = {
@@ -89,7 +90,8 @@ class NanotecStepper():
         "joystick_filter": 16,
         "limit_switch_behavior": 17442,  # default   alternative: 9250,  # default + ext.lim = stop
         "input_1": 7,  # external reference switch
-        "input_2": 7   # external reference switch
+        "input_2": 7,   # external reference switch
+        "error_correction": 0,  # off
     }
 
     def __init__(self, commander, io_card, stepper_config):
