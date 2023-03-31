@@ -206,7 +206,7 @@ class Hsm(object):
         self.trig_done()
 
     def homing_sequence(self, event):
-        motion_controller.homing_run()
+        motion_controller.calibration_run()
         self.trig_done()
 
     def test(self):

@@ -180,14 +180,12 @@ class MotionController:
 
         # motion_controller.run_circular_sequence(distance=0.7, radius=0.3, duration=30, step_frequency=10, start_angle=1, stop_angle=2 * math.gpio - 1)
 
-    def homing_run(self):
-        # define individual threads for all axis to run homing in parallel
-        find_limits_arm_thread = threading.Thread(target=self._axes['arm'].find_linear_stepper_limits)
-        find_limits_lift_thread = threading.Thread(target=self._axes['lift'].find_linear_stepper_limits)
+    def calibration_run(self, quick=True):
+
         # the lambda prevents the function from being interpreted here already. Don't ask me how. I have no clue.
+        find_limits_arm_thread = threading.Thread(target=lambda: self._axes['arm'].find_linear_stepper_limits(from_file=True))
+        find_limits_lift_thread = threading.Thread(target=lambda: self._axes['lift'].find_linear_stepper_limits(from_file=True))
         find_limits_rotor_thread = threading.Thread(target=lambda: self._axes['rotor'].find_rotor_origin(limit_switch='external', direction=Direction.negative))
-        find_origin_pan_thread = threading.Thread(target=lambda: self._axes['pan'].find_rotational_stepper_origin(limit_switch='internal', direction=Direction.negative))
-        find_origin_tilt_thread = threading.Thread(target=lambda: self._axes['tilt'].find_rotational_stepper_origin(limit_switch='internal', direction=Direction.positive))
         # find limits of major _axes
         find_limits_arm_thread.start()
         find_limits_lift_thread.start()
@@ -196,6 +194,20 @@ class MotionController:
         find_limits_arm_thread.join()
         find_limits_lift_thread.join()
         find_limits_rotor_thread.join()
+        self._axes['rotor'].set_fake_rotational_stepper_limits()
+
+        self.pan_tilt_calibration_run()
+
+    def pan_tilt_calibration_run(self):
+
+        # define individual threads for all axis to run homing in parallel
+        # the lambda prevents the function from being interpreted here already. Don't ask me how. I have no clue.
+        find_origin_pan_thread = threading.Thread(
+            target=lambda: self._axes['pan'].find_rotational_stepper_origin(limit_switch='internal',
+                                                                            direction=Direction.negative))
+        find_origin_tilt_thread = threading.Thread(
+            target=lambda: self._axes['tilt'].find_rotational_stepper_origin(limit_switch='internal',
+                                                                             direction=Direction.positive))
         # find limits of minor _axes
         find_origin_pan_thread.start()
         find_origin_tilt_thread.start()
@@ -205,7 +217,6 @@ class MotionController:
         # set fake limits because there are no limit switches yet
         self._axes['pan'].set_fake_rotational_stepper_limits()
         self._axes['tilt'].set_fake_rotational_stepper_limits()
-        self._axes['rotor'].set_fake_rotational_stepper_limits()
 
     def activate_all_steppers_hardware_analog_joystick_mode(self):
         # limit speeds for joystick mode

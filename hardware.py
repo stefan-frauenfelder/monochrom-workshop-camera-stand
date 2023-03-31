@@ -27,6 +27,7 @@ JOYSTICK_BUTTON_GPIO = 6
 # RGB 0 pushbutton
 RGB_0_BUTTON_GPIO = 24
 
+
 class HardwareManager:
 
     def __init__(self):

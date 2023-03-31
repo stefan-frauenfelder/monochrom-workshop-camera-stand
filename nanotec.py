@@ -3,6 +3,7 @@ import threading
 import math
 from enum import Enum
 import json
+import os
 
 
 import sequent_ports
@@ -567,7 +568,11 @@ class FiniteStepper(OrientedStepper):
 
         self._is_limited = False
 
-        self._calibration = None
+        try:
+            file_name = self.name + '_calibration.json'
+            self._calibration = json.loads(open(file_name).read())
+        except os.error:
+            self._calibration = None
 
         near_soft_limit_port = self.stepper_config['nearSoftLimitPort']
         far_soft_limit_port = self.stepper_config['farSoftLimitPort']
@@ -609,74 +614,86 @@ class FiniteStepper(OrientedStepper):
             print('WARNING: ' + self.name + ' axis stopped due to soft limit violation.')
             raise SoftLimitViolationException
 
-    def find_linear_stepper_limits(self):
+    def find_linear_stepper_limits(self, from_file=False):
+
+        # find the origin first
         if not self.is_referenced:
             self.find_linear_stepper_origin()
 
-        # move to off near limit
-        self.move(travel=- 2 * self._approx_safe_travel, speed=0.1)
-        self.run()
-        while not self._is_off_near_soft_limit:
-            time.sleep(0.1)
-        self.stop()
+        if from_file and self._calibration:  # load limit locations from previously stored file
 
-        # slowly go back to within limit
-        self.move(travel=2 * self._approx_safe_travel, speed=0.01)
-        self.run()
-        while self._is_off_near_soft_limit:
-            time.sleep(0.01)
-        self.stop()
+            self._near_soft_limit_location = self._calibration['near_soft_limit_location']
+            self._far_soft_limit_location = self._calibration['far_soft_limit_location']
+            self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
 
-        # set the near limit
-        current_position = self.signed_position
-        self._near_soft_limit_location = current_position
-        print('Set near soft limit location of ' + self.name + ' axis to ' + str(current_position) + '.')
+        else:  # full calibration
 
-        # move to near far limit
-        self.move(travel=self._approx_safe_travel, speed=0.2)
-        self.run()
-        while not self.is_ready:
-            time.sleep(0.5)
-        self.stop()
+            # move to off near limit
+            self.move(travel=- 2 * self._approx_safe_travel, speed=0.1)
+            self.run()
+            while not self._is_off_near_soft_limit:
+                time.sleep(0.1)
+            self.stop()
 
-        # move beyond far limit
-        self.move(travel=self._approx_safe_travel, speed=0.1)
-        self.run()
-        while not self._is_off_far_soft_limit:
-            time.sleep(0.1)
-        self.stop()
+            # slowly go back to within limit
+            self.move(travel=2 * self._approx_safe_travel, speed=0.01)
+            self.run()
+            while self._is_off_near_soft_limit:
+                time.sleep(0.01)
+            self.stop()
 
-        # slowly go back to within limit
-        self.move(travel=-self._approx_safe_travel, speed=0.01)
-        self.run()
-        while self._is_off_far_soft_limit:
-            time.sleep(0.01)
-        self.stop()
+            # set the near limit
+            current_position = self.signed_position
+            self._near_soft_limit_location = current_position
+            print('Set near soft limit location of ' + self.name + ' axis to ' + str(current_position) + '.')
 
-        # set the far limit
-        current_position = self.signed_position
-        self._far_soft_limit_location = current_position
-        print('Set far soft limit location of ' + self.name + ' axis to ' + str(current_position) + '.')
+            # move to near far limit
+            self.move(travel=self._approx_safe_travel, speed=0.2)
+            self.run()
+            while not self.is_ready:
+                time.sleep(0.5)
+            self.stop()
 
-        self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
+            # move beyond far limit
+            self.move(travel=self._approx_safe_travel, speed=0.1)
+            self.run()
+            while not self._is_off_far_soft_limit:
+                time.sleep(0.1)
+            self.stop()
 
-        # move to center
-        self.move(travel=- self._safe_travel_range / 2, speed=0.2)
-        self.blocking_run()
+            # slowly go back to within limit
+            self.move(travel=-self._approx_safe_travel, speed=0.01)
+            self.run()
+            while self._is_off_far_soft_limit:
+                time.sleep(0.01)
+            self.stop()
+
+            # set the far limit
+            current_position = self.signed_position
+            self._far_soft_limit_location = current_position
+            print('Set far soft limit location of ' + self.name + ' axis to ' + str(current_position) + '.')
+
+            # save calibration
+            self._calibration = {
+                'near_soft_limit_location': self._near_soft_limit_location,
+                'far_soft_limit_location': self._far_soft_limit_location
+            }
+            file_name = self.name + '_calibration.json'
+            with open(file_name, 'w') as file:
+                json.dump(self._calibration, file, indent=4)
+
+            self._safe_travel_range = self._far_soft_limit_location - self._near_soft_limit_location - 2 * self._safety_margin
+
+            # move to center
+            self.move(travel=- self._safe_travel_range / 2, speed=0.2)
+            self.blocking_run()
 
         self._is_limited = True
 
         print('Safe travel of ' + self.name + ' axis is ' + str(self._safe_travel_range) + '.')
         print('Soft limit guard of ' + self.name + ' axis activated.')
 
-        # save calibration
-        self._calibration = {
-            'near_soft_limit_location': self._near_soft_limit_location,
-            'far_soft_limit_location': self._far_soft_limit_location
-        }
-        file_name = self.name + '_calibration.json'
-        with open(file_name, 'w') as file:
-            json.dump(self._calibration, file, indent=4)
+
 
     def set_fake_rotational_stepper_limits(self):
 
