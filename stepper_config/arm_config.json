@@ -3,6 +3,8 @@
     "motion": "linear",
     "busAddress": 1,
     "powerRelay": 1,
+    "phaseCurrent": 25,
+    "phaseCurrentStillStand": 10,
     "stepsPerMotorRevolution": 200,
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 0.12,

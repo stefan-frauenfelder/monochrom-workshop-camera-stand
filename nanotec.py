@@ -66,7 +66,9 @@ class NanotecStepper():
         "is_referenced": b':is_referenced',
         "status": b'$',
         "reset_error": b'D',
-        "factory_reset": b'~'
+        "factory_reset": b'~',
+        "phase_current": b'i',
+        "phase_current_still_stand": b'r',
     }
 
     _defaults = {
@@ -102,6 +104,8 @@ class NanotecStepper():
         self._micro_steps_per_step = self.stepper_config['microStepsPerStep']
         self.name = self.stepper_config['name']
         self._power_relay = self.stepper_config['powerRelay']
+        self._phase_current = self.stepper_config['phaseCurrent']
+        self._phase_current_still_stand = self.stepper_config['phaseCurrentStillStand']
         self.armed = False
 
     def initialize(self):
@@ -111,6 +115,8 @@ class NanotecStepper():
             self.commander.write_command(self._motor_address, command)
             # print('Initializing ' + key + ' of motor ' + str(self._motor_address) + ' to ' + str(self._defaults[key]))
 
+        self.phase_current = self._phase_current
+        self.phase_current_still_stand = self._phase_current_still_stand
         self.micro_steps_per_step = self._micro_steps_per_step
         self.mode = "relative_positioning"
         self.ramp_type = "jerkfree"
@@ -174,6 +180,26 @@ class NanotecStepper():
         command = self._command_letters["step_mode"] + (str(value).encode('UTF-8'))
         self.commander.write_command(self._motor_address, command)
         self._micro_steps_per_step = value
+
+    @property
+    def phase_current(self):
+        return self._phase_current
+
+    @phase_current.setter
+    def phase_current(self, value):
+        command = self._command_letters["phase_current"] + (str(value).encode('UTF-8'))
+        self.commander.write_command(self._motor_address, command)
+        self._phase_current = value
+
+    @property
+    def phase_current_still_stand(self):
+        return self._phase_current_still_stand
+
+    @phase_current_still_stand.setter
+    def phase_current_still_stand(self, value):
+        command = self._command_letters["phase_current_still_stand"] + (str(value).encode('UTF-8'))
+        self.commander.write_command(self._motor_address, command)
+        self._phase_current_still_stand = value
 
     def ramp_type(self, value):
         if value == "trapezoid":

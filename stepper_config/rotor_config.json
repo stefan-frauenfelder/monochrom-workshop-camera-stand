@@ -3,6 +3,8 @@
     "motion": "rotational",
     "busAddress": 3,
     "powerRelay": 6,
+    "phaseCurrent": 25,
+    "phaseCurrentStillStand": 10,
     "stepsPerMotorRevolution": 200,
     "microStepsPerStep": 8,
     "siUnitPerMotorRevolution": 0.2513,
