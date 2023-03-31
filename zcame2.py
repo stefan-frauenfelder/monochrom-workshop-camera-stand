@@ -13,10 +13,10 @@ class ZCamE2:
         # status flag of the interface class
         self.ready = False
         # check connection
-        if self.get_response():
+        if self._get_response():
             print('Connection to camera established.')
             # acquire the control session
-            if self.get_control_session():
+            if self._get_control_session():
                 print('Camera control session acquired.')
                 self.ready = True
                 self.sync_time()
@@ -28,56 +28,60 @@ class ZCamE2:
             print('Unable to connect to camera.')
 
     def set_mode(self, mode):
-        if mode == 'record':
-            payload = {'action': 'to_rec'}
-        elif mode == 'playback':
-            payload = {'action': 'to_pb'}
-        elif mode == 'standby':
-            payload = {'action': 'to_standby'}
-        else:
-            raise ValueError('This is not a valid camera mode.')
-        # send the command and allow for a long timeout in case the camera is in standby
-        self.get_response(subdir='ctrl/mode', payload=payload, timeout=2)
+        if self.ready:
+            if mode == 'record':
+                payload = {'action': 'to_rec'}
+            elif mode == 'playback':
+                payload = {'action': 'to_pb'}
+            elif mode == 'standby':
+                payload = {'action': 'to_standby'}
+            else:
+                raise ValueError('This is not a valid camera mode.')
+            # send the command and allow for a long timeout in case the camera is in standby
+            self._get_response(subdir='ctrl/mode', payload=payload, timeout=2)
 
     def start_recording(self):
-        # verify the camera is in recording mode
-        response = self.get_response(subdir='ctrl/mode', payload={'action': 'query'})
-        if not response.json()['msg'] == 'rec':
-            # switch to recording mode
-            self.set_mode('record')
-        # start recording
-        response = self.get_response(subdir='ctrl/rec', payload={'action': 'start'})
+        if self.ready:
+            # verify the camera is in recording mode
+            response = self._get_response(subdir='ctrl/mode', payload={'action': 'query'})
+            if not response.json()['msg'] == 'rec':
+                # switch to recording mode
+                self.set_mode('record')
+            # start recording
+            response = self._get_response(subdir='ctrl/rec', payload={'action': 'start'})
 
     def stop_recording(self):
-        # stop recording
-        response = self.get_response(subdir='ctrl/rec', payload={'action': 'stop'})
+        if self.ready:
+            # stop recording
+            response = self._get_response(subdir='ctrl/rec', payload={'action': 'stop'})
 
     def sync_time(self):
-        # get date and time
-        now = datetime.now()
-        date = now.strftime("%Y-%m-%d")
-        time = now.strftime("%H:%M:%S")
-        # fill into payload of URL
-        payload = {'date': date, 'time': time}
-        response = self.get_response(subdir='datetime', payload=payload)
+        if self.ready:
+            # get date and time
+            now = datetime.now()
+            date = now.strftime("%Y-%m-%d")
+            time = now.strftime("%H:%M:%S")
+            # fill into payload of URL
+            payload = {'date': date, 'time': time}
+            response = self._get_response(subdir='datetime', payload=payload)
 
-    def get_control_session(self):
+    def _get_control_session(self):
         # try to acquire the control session
-        response = self.get_response('ctrl/session')
+        response = self._get_response('ctrl/session')
         # check if it failed
         if response.status_code == 409:
             # control session was already established
             # try to quit it
             payload = {'action': 'quit'}
-            response = self.get_response('ctrl/session', payload=payload)
+            response = self._get_response('ctrl/session', payload=payload)
             time.sleep(0.1)
-            response = self.get_response('ctrl/session')
+            response = self._get_response('ctrl/session')
             if response.status_code == 409:
                 return None
         else:
             return response
 
-    def get_response(self, subdir='info', payload=None, timeout=0.1):
+    def _get_response(self, subdir='info', payload=None, timeout=0.1):
         # this is a wrapper to do all the error handling
         # assemble URL
         url = 'http://' + E2_IP + '/' + subdir
