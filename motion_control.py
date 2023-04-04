@@ -46,23 +46,24 @@ class MotionController:
 
         self._polar_joystick_axes_set = 'arm-lift-rotor'
 
+        self.setup_marker = {}
         self.start_marker = {}
         self.target_marker = {}
-
-        self.current_sequence_setup_marker = {}
-        self.current_sequence_start_marker = {}
-        self.current_sequence_target_marker = {}
 
         # parameters
 
         # the resulting total speed of the camera
         self.camera_speed = [0.1]
-
         # the total length of the target path the camera travels during the target motion, from start to stop, including acceleration distance
         self.total_target_path_length = [0.1]
-
         # the perpendicular distance of the camera path from the robot origin
         self.perpendicular_target_path_distance_from_origin = [0.5]
+        # the duration of the linear interpolated move from start to target
+        self.linear_interpolation_duration = [9]
+        # the distance of the target path's center from the target path's closest point to origin
+        self.target_path_center_offset = [0.0]
+        # the radius of the target path in orbiter mode
+        self.orbiter_radius = [0.2]
 
     def get_marker(self):
         marker = {}
@@ -73,13 +74,22 @@ class MotionController:
             marker[key] = axis.absolute_position
         return marker
 
-    def synchronized_move_to_marker(self, marker):
+    def set_setup_marker(self):
+        self.setup_marker = self.get_marker()
+
+    def set_start_marker(self):
+        self.start_marker = self.get_marker()
+
+    def set_target_marker(self):
+        self.target_marker = self.get_marker()
+
+    def synchronized_move_to_marker(self, marker, specified_duration=None):
         """ perform a synchronized move from the current location to the marker """
         # get some empty dicts for later
         duration = {}
         distance = {}
         start_location = {}
-        common_duration = 0
+        common_duration = 0.1
 
         # only a subset of axis may have to move, so go through keys in marker
         for key in marker:
@@ -94,6 +104,13 @@ class MotionController:
         for key in duration:
             common_duration = max(common_duration, duration[key])
 
+        # if a duration is specified
+        if specified_duration:
+            # and if it is not too short (max speed violation)
+            if specified_duration > common_duration:
+                # use the specified one
+                common_duration = float(specified_duration)
+
         # calculate speeds based on common duration
         for key in marker:
             # unpack
@@ -106,6 +123,15 @@ class MotionController:
 
         # start all axes
         self.parallel_run()
+
+    def move_to_start(self):
+        self.synchronized_move_to_marker(self.start_marker)
+
+    def move_to_target(self):
+        self.synchronized_move_to_marker(self.target_marker, self.linear_interpolation_duration[0])
+
+    def move_to_setup(self):
+        self.synchronized_move_to_marker(self.setup_marker)
 
     def reset_rotor_reference(self):
         rotor: LocatedStepper = self._axes['rotor']
@@ -133,15 +159,21 @@ class MotionController:
         self.start_jog_control()
 
     def toggle_polar_joystick_axes_set(self):
-        # stop joystick to switch axes set
-        self.stop_continuous_control_thread()
-        # switch axes set
-        if self._polar_joystick_axes_set == 'arm-lift-rotor':
-            self._polar_joystick_axes_set = 'pan-tilt'
-        else:
-            self._polar_joystick_axes_set = 'arm-lift-rotor'
-        # start again
-        self.start_polar_joystick_control()
+        # make sure there is an active thread
+        if self._continuous_control_thread_id:
+            if self._continuous_control_thread_id.is_alive():
+                # stop joystick to switch axes set
+                self.stop_continuous_control_thread()
+                # switch axes set
+                if self._polar_joystick_axes_set == 'arm-lift-rotor':
+                    self._polar_joystick_axes_set = 'pan-tilt'
+                else:
+                    self._polar_joystick_axes_set = 'arm-lift-rotor'
+                # start again
+                self.start_polar_joystick_control()
+                print('Toggled joystick axes.')
+            else:
+                print('Warning: Not toggling joystick axes since joystick is not active.')
 
     def initialize_steppers(self):
         # create all the stepper instances using the stepper configuration files
@@ -150,7 +182,8 @@ class MotionController:
         # Vertical axis
         lift = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/lift_config.json").read()))
         # rotation of the arm
-        rotor = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/rotor_config.json").read()))
+        rotor = LocatedStepper(self.commander, self.io_card,
+                               json.loads(open("stepper_config/rotor_config.json").read()))
         # paning of the camera
         pan = LocatedStepper(self.commander, self.io_card, json.loads(open("stepper_config/pan_config.json").read()))
         # tilting of the camera
@@ -183,9 +216,12 @@ class MotionController:
     def calibration_run(self, quick=True):
 
         # the lambda prevents the function from being interpreted here already. Don't ask me how. I have no clue.
-        find_limits_arm_thread = threading.Thread(target=lambda: self._axes['arm'].find_linear_stepper_limits(from_file=True))
-        find_limits_lift_thread = threading.Thread(target=lambda: self._axes['lift'].find_linear_stepper_limits(from_file=True))
-        find_limits_rotor_thread = threading.Thread(target=lambda: self._axes['rotor'].find_rotor_origin(limit_switch='external', direction=Direction.negative))
+        find_limits_arm_thread = threading.Thread(
+            target=lambda: self._axes['arm'].find_linear_stepper_limits(from_file=True))
+        find_limits_lift_thread = threading.Thread(
+            target=lambda: self._axes['lift'].find_linear_stepper_limits(from_file=True))
+        find_limits_rotor_thread = threading.Thread(
+            target=lambda: self._axes['rotor'].find_rotor_origin(limit_switch='external', direction=Direction.negative))
         # find limits of major _axes
         find_limits_arm_thread.start()
         find_limits_lift_thread.start()
@@ -421,7 +457,7 @@ class MotionController:
         self._axes['rotor'].absolute_position = - deviation_angle
 
         # using the new rotor origin, store the marker of the setup position
-        self.current_sequence_setup_marker = self.get_marker()
+        self.setup_marker = self.get_marker()
 
         # calculate the perpendicular distance of the camera from the origin
         arm_extension = self._axes['arm'].absolute_position
@@ -435,12 +471,12 @@ class MotionController:
         rotor_starting_angle = front_linear_motion_rotor_pan_angle(deflection_from_center, distance)
 
         # store this in the start marker
-        self.current_sequence_start_marker = {'arm': arm_start_position,
-                                              'rotor': rotor_starting_angle,
-                                              'pan': - rotor_starting_angle}
+        self.start_marker = {'arm': arm_start_position,
+                             'rotor': rotor_starting_angle,
+                             'pan': - rotor_starting_angle}
 
         # move
-        self.synchronized_move_to_marker(self.current_sequence_start_marker)
+        self.synchronized_move_to_marker(self.start_marker)
 
     def front_linear_motion(self):
 
@@ -481,11 +517,13 @@ class MotionController:
 
                 t = time.time() - start_time
                 speed = self.speed_scaling(nominal_speed, t, duration, acceleration)
-                self._axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, speed, initial_deflection, distance)
+                self._axes['rotor'].signed_speed = front_linear_motion_rotor_pan_speed(t, speed, initial_deflection,
+                                                                                       distance)
 
                 t = time.time() - start_time
                 speed = self.speed_scaling(nominal_speed, t, duration, acceleration)
-                self._axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, speed, initial_deflection, distance)
+                self._axes['pan'].signed_speed = - front_linear_motion_rotor_pan_speed(t, speed, initial_deflection,
+                                                                                       distance)
 
                 if stopped:
                     for axis in axes:

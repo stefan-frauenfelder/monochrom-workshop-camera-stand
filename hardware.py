@@ -44,7 +44,7 @@ class HardwareManager:
 
         # create a joystick
         self.joystick = Joystick()
-        self.joystick_button_callbacks = []
+        self.joystick_button_callbacks = [None]
 
         # set up the hardware opto-isolated input and relay outputs cards
         self.sequent_ports = SequentPorts(SEQUENT_INTERRUPT_GPIO)
@@ -54,7 +54,7 @@ class HardwareManager:
         self.rgb_0_button_light.begin()
         self.rgb_0_button_light.set_rgb_color(RgbButton.e_blue)
 
-        self.rgb_0_button_callbacks = []
+        self.rgb_0_button_callbacks = [None]
 
         # create the I/O-expander
         self.io_expander = Ch423()
@@ -146,18 +146,22 @@ class HardwareManager:
     def cb_joystick_button(self, gpio_pin, _level, _tick):
         if not _level:
             print('Hardware: joystick button pressed.')
+            for callback in self.joystick_button_callbacks:
+                if callback:
+                    callback()
         else:
             print('Hardware: joystick button released.')
-        for callback in self.joystick_button_callbacks:
-            callback(not _level)
+
 
     def cb_rgb_0_button(self, gpio_pin, _level, _tick):
         if _level:
             print('Hardware: RGB 0 button pressed.')
+            for callback in self.rgb_0_button_callbacks:
+                if callback:
+                    callback()
         else:
             print('Hardware: RGB 0 button released.')
-        for callback in self.rgb_0_button_callbacks:
-            callback(_level)
+
 
     def cb_soft_key_1(self, _level):
         if _level:

@@ -39,7 +39,10 @@ class Tab:
                  hsm_trigger=None,
                  soft_key_a_callback=None,
                  soft_key_b_callback=None,
-                 soft_key_c_callback=None):
+                 soft_key_c_callback=None,
+                 rgb_0_button_callback=None,
+                 joystick_button_callback=None,
+                 init_function=None):
 
         self.display_name = display_name
         self.short_display_name = short_display_name
@@ -49,6 +52,9 @@ class Tab:
         self.soft_key_a_callback = soft_key_a_callback
         self.soft_key_b_callback = soft_key_b_callback
         self.soft_key_c_callback = soft_key_c_callback
+        self.rgb_0_button_callback = rgb_0_button_callback
+        self.joystick_button_callback = joystick_button_callback
+        self.init_function = init_function
         self._active = False
 
     def activate(self):
@@ -60,6 +66,10 @@ class Tab:
             hardware_manager.soft_key_1_callbacks[0] = self.soft_key_a_callback
             hardware_manager.soft_key_2_callbacks[0] = self.soft_key_b_callback
             hardware_manager.soft_key_3_callbacks[0] = self.soft_key_c_callback
+            hardware_manager.rgb_0_button_callbacks[0] = self.rgb_0_button_callback
+            hardware_manager.joystick_button_callbacks[0] = self.joystick_button_callback
+            if self.init_function:
+                self.init_function()
             self._active = True
             # tell the (parent) QT tab bar to make this tab visible/active
             self.tab_bar.setCurrentIndex(self.slot)
@@ -68,6 +78,8 @@ class Tab:
         hardware_manager.soft_key_1_callbacks[0] = None
         hardware_manager.soft_key_2_callbacks[0] = None
         hardware_manager.soft_key_3_callbacks[0] = None
+        hardware_manager.rgb_0_button_callbacks[0] = None
+        hardware_manager.joystick_button_callbacks[0] = None
         self._active = False
 
     @property
@@ -134,8 +146,6 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             'QPushButton:disabled {color: #666; border-color: #666}'
         )
 
-        self.mode = 0
-
         self.tabs = []
 
         # Callback registration for static callbacks
@@ -145,35 +155,43 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         hsm.after_any_state_change_callbacks.append(self.after_hsm_state_change)
 
         hardware_manager.rotary_selector_callbacks.append(self.cb_rotary_selector_switch)
-        hardware_manager.joystick_button_callbacks.append(self.cb_joystick_button_change)
-        hardware_manager.rgb_0_button_callbacks.append(self.cb_rgb_0_button_change)
         hardware_manager.wheel_callbacks.append(self.cb_wheel_counter_change)
-
-        # hardware_manager.soft_key_3_callbacks.append(self.switch_parameter)
 
         # Parameterization
 
-        sequencer_parameter_set = HmiParameterSet()
-        sequencer_parameter_set.parameter.append(HmiParameter(
+        speed_parameter = HmiParameter(
             name='speed',
-            labels=[self.speed_label, self.speed_value, self.speed_unit],
+            labels=[self.sequence_speed_label, self.sequence_speed_value, self.sequence_speed_unit],
             target=motion_controller.camera_speed,
-            value_label=self.speed_value,
+            value_label=self.sequence_speed_value,
             value_range=(0.001, 0.5),
             value_increment=0.001,
             value_fraction_digits=3
-        ))
-        sequencer_parameter_set.parameter.append(HmiParameter(
+        )
+        deflection_parameter = HmiParameter(
             name='deflection',
-            labels=[self.deflection_label, self.deflection_value, self.deflection_unit],
+            labels=[self.sequence_deflection_label, self.sequence_deflection_value, self.sequence_deflection_unit],
             target=motion_controller.total_target_path_length,
-            value_label=self.deflection_value,
+            value_label=self.sequence_deflection_value,
             value_range=(0.01, 1.2),
             value_increment=0.01,
             value_fraction_digits=2
-        ))
-        # add the set to the space
-        self.parameter_space['sequencer_parameter'] = sequencer_parameter_set
+        )
+        duration_parameter = HmiParameter(
+            name='duration',
+            labels=[self.lin_duration_label, self.lin_duration_value, self.lin_duration_unit],
+            target=motion_controller.linear_interpolation_duration,
+            value_label=self.lin_duration_value,
+            value_range=(1, 100),
+            value_increment=1,
+            value_fraction_digits=0
+        )
+
+        sequencer_parameter_set = HmiParameterSet()
+        sequencer_parameter_set.parameter.extend([speed_parameter, deflection_parameter])
+
+        lin_parameter_set = HmiParameterSet()
+        lin_parameter_set.parameter.append(duration_parameter)
 
         # Create the tabs
 
@@ -184,7 +202,7 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             short_display_name='JOG',
             slot=0,
             parameter_set=None,
-            hsm_trigger=hsm.trig_jog
+            hsm_trigger=hsm.trig_jog,
         ))
         self.tabs.append(Tab(
             display_name='Joystick',
@@ -192,14 +210,21 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             slot=1,
             parameter_set=None,
             hsm_trigger=hsm.trig_joystick,
-            soft_key_c_callback=motion_controller.reset_rotor_reference
+            soft_key_c_callback=motion_controller.reset_rotor_reference,
+            joystick_button_callback=self.switch_joystick_axes,
         ))
         self.tabs.append(Tab(
-            display_name='A-B',
-            short_display_name='A-B',
+            display_name='Linear interpolation',
+            short_display_name='LIN',
             slot=2,
-            parameter_set=None,
-            hsm_trigger=hsm.trig_sequencer
+            parameter_set=lin_parameter_set,
+            hsm_trigger=hsm.trig_sequencer,
+            soft_key_a_callback=motion_controller.set_start_marker,
+            soft_key_b_callback=motion_controller.set_target_marker,
+            soft_key_c_callback=self.switch_parameter,
+            rgb_0_button_callback=hsm.trig_proceed,
+            joystick_button_callback=self.switch_joystick_axes,
+            init_function=self.lin_init,
         ))
         self.tabs.append(Tab(
             display_name='Sequencer',
@@ -207,30 +232,38 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
             slot=3,
             parameter_set=sequencer_parameter_set,
             hsm_trigger=hsm.trig_sequencer,
-            soft_key_c_callback=self.switch_parameter
+            soft_key_c_callback=self.switch_parameter,
+            rgb_0_button_callback=hsm.trig_proceed,
+            joystick_button_callback=self.switch_joystick_axes,
+            init_function=self.sequencer_init,
         ))
         self.tabs.append(Tab(
             display_name='Settings',
             short_display_name='SYS',
             slot=4,
             parameter_set=None,
-            hsm_trigger=hsm.trig_sequencer
+            hsm_trigger=hsm.trig_sequencer,
         ))
 
     def switch_parameter(self):
-        num_param_in_set = len(self.active_parameter_set.parameter)
-        previous_selected_index = self.active_parameter_set.selected_index
-        self.active_parameter_set.selected_index = (previous_selected_index + 1) % num_param_in_set
-        for i in range(num_param_in_set):
-            hmi_parameter: HmiParameter = self.active_parameter_set.parameter[i]
-            if i == self.active_parameter_set.selected_index:
-                # change labels of parameters to white
-                for label in hmi_parameter.labels:
-                    label.setStyleSheet('QLabel{color: #fff}')
-                self.configure_wheel_for_parameter(hmi_parameter)
-            elif i == previous_selected_index:
-                for label in hmi_parameter.labels:
-                    label.setStyleSheet('QLabel{color: #999}')
+        if self.active_parameter_set:
+            num_param_in_set = len(self.active_parameter_set.parameter)
+            previous_selected_index = self.active_parameter_set.selected_index
+            self.active_parameter_set.selected_index = (previous_selected_index + 1) % num_param_in_set
+            self.update_parameter()
+
+    def update_parameter(self):
+        if self.active_parameter_set:
+            for i in range(len(self.active_parameter_set.parameter)):
+                hmi_parameter: HmiParameter = self.active_parameter_set.parameter[i]
+                if i == self.active_parameter_set.selected_index:
+                    # change labels of parameters to white
+                    for label in hmi_parameter.labels:
+                        label.setStyleSheet('QLabel{color: #fff}')
+                    self.configure_wheel_for_parameter(hmi_parameter)
+                else:
+                    for label in hmi_parameter.labels:
+                        label.setStyleSheet('QLabel{color: #999}')
 
     def configure_wheel_for_parameter(self, param):
         parameter: HmiParameter = param
@@ -239,7 +272,6 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         wheel.min = parameter.value_range[0]
         wheel.max = parameter.value_range[1]
         wheel.scale = parameter.value_increment
-
 
     @property
     def active_tab(self):
@@ -251,7 +283,7 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
     @property
     def active_parameter_set(self):
         if self.active_tab:
-            return self.active_tab.parameter_set
+            return self.active_tab.parameter_set  # can be None as well
 
     def closeEvent(self, event):
         print("Window close command issued, passing e_exit event to FSM.")
@@ -262,6 +294,12 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
     def quick_test(self):
         pass
 
+    def lin_init(self):
+        hsm.sequencer_variant = 'linear_interpolation'
+
+    def sequencer_init(self):
+        hsm.sequencer_variant = 'front_linear'
+
     def cb_rotary_selector_switch(self, index):
         print('Controller: switched to mode ' + str(index))
         # deactivate the currently active tab (only one must be active at all time)
@@ -270,72 +308,18 @@ class Hmi(QtWidgets.QMainWindow, mainwindow.Ui_MainWindow):
         for tab in self.tabs:
             if tab.slot == index:
                 tab.activate()  # this triggers the HSM state transition and updates shows the tab in the GUI
+                self.update_parameter()  # this highlights the last selected parameter and configures the wheel
                 break
 
-    def cb_joystick_button_change(self, value):
-        # only if button is pressed
-        if value:
-            # different behavior depending on current mode
-
-            # polar joystick mode
-            if hsm.is_s_operational.s_joystick_control():
-                if hsm.joystick_variant == 'polar':
-                    motion_controller.toggle_polar_joystick_axes_set()
-                    print('Toggled joystick axes.')
-
-    def cb_rgb_0_button_change(self, value):
-        # only if button is pressed
-        if value:
-            # different behavior depending on current mode
-
-            # jog mode
-            if hsm.is_s_operational.s_jog_control():
-                motion_controller.toggle_jog_axis()
-                print('Toggled jog axis.')
-
-            # polar joystick mode
-            elif hsm.is_s_operational.s_joystick_control():
-                print('Setting marker.')
-                marker = motion_controller.get_marker()
-                print(marker)
-                motion_controller.target_marker = marker
-
-            # sequencer mode
-            elif hsm.is_s_operational.s_sequencer_control(allow_substates=True):
-                hsm.trig_proceed()
+    def switch_joystick_axes(self):
+        if hsm.joystick_variant == 'polar':
+            motion_controller.toggle_polar_joystick_axes_set()
 
     def before_hsm_state_change(self, state_name):
         pass
 
     def after_hsm_state_change(self, state_name):
         # different behavior depending on current mode
-
-        # jog mode
-        if hsm.is_s_operational.s_jog_control():
-            self.mode_label = 'Jogging'
-
-        # joystick modes
-        elif hsm.is_s_operational.s_joystick_control():
-            if hsm.joystick_variant == 'polar':
-                self.mode_label = 'Polar Joystick'
-            elif hsm.joystick_variant == 'rectilinear':
-                self.mode_label = 'Rect. Joystick'
-
-        # sequencer modes
-        elif hsm.is_s_operational.s_sequencer_control(allow_substates=True):
-            if hsm.sequencer_variant == 'a_b':
-                self.mode_label = 'A to B'
-            elif hsm.sequencer_variant == 'front_linear':
-                self.mode_label = 'Front Linear'
-            elif hsm.sequencer_variant == 'orbiter':
-                self.mode_label = 'Orbiter'
-
-            if hsm.is_s_operational.s_sequencer_control.s_at_setup():
-                # wheel is used to dial in the duration of the slide
-                pass
-        # other
-        else:
-            self.mode_label = 'Other'
 
         if hsm.is_s_initialized():
             self.homing_button.setEnabled(True)

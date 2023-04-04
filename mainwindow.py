@@ -41,6 +41,8 @@ class Ui_MainWindow(object):
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.tab_bar.addTab(self.jog_tab, "")
 
+        # Joystick tab
+
         self.joystick_tab = QtWidgets.QWidget()
         self.joystick_tab.setObjectName("joystick_tab")
 
@@ -58,9 +60,50 @@ class Ui_MainWindow(object):
 
         self.tab_bar.addTab(self.joystick_tab, "")
 
-        self.ab_tab = QtWidgets.QWidget()
-        self.ab_tab.setObjectName("ab_tab")
-        self.tab_bar.addTab(self.ab_tab, "")
+        # Linear interpolation tab
+
+        self.lin_tab = QtWidgets.QWidget()
+        self.lin_tab.setObjectName("lin_tab")
+
+        self.soft_key_A_lin_tab = QtWidgets.QPushButton(self.lin_tab)
+        self.soft_key_A_lin_tab.setGeometry(QtCore.QRect(20, 410, 160, 50))
+        self.soft_key_A_lin_tab.setObjectName("soft_key_A_lin_tab")
+
+        self.soft_key_B_lin_tab = QtWidgets.QPushButton(self.lin_tab)
+        self.soft_key_B_lin_tab.setGeometry(QtCore.QRect(210, 410, 160, 50))
+        self.soft_key_B_lin_tab.setObjectName("soft_key_B_lin_tab")
+
+        self.soft_key_C_lin_tab = QtWidgets.QPushButton(self.lin_tab)
+        self.soft_key_C_lin_tab.setGeometry(QtCore.QRect(400, 410, 160, 50))
+        self.soft_key_C_lin_tab.setObjectName("soft_key_C_lin_tab")
+
+        self.tab_bar.addTab(self.lin_tab, "")
+
+        # grid layout for parameters of linear interpolation tab
+
+        self.lin_parameter_gridLayoutWidget = QtWidgets.QWidget(self.lin_tab)
+        self.lin_parameter_gridLayoutWidget.setGeometry(QtCore.QRect(169, 200, 271, 80))
+        self.lin_parameter_gridLayoutWidget.setObjectName("gridLayoutWidget")
+
+        self.lin_parameters = QtWidgets.QGridLayout(self.lin_parameter_gridLayoutWidget)
+        self.lin_parameters.setContentsMargins(0, 0, 0, 0)
+        self.lin_parameters.setObjectName("parameters")
+
+        self.lin_duration_value = QtWidgets.QLabel(self.lin_parameter_gridLayoutWidget)
+        self.lin_duration_value.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTrailing | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.lin_duration_value.setObjectName("speed_value")
+        self.lin_parameters.addWidget(self.lin_duration_value, 1, 1, 1, 1)
+
+        self.lin_duration_label = QtWidgets.QLabel(self.lin_parameter_gridLayoutWidget)
+        self.lin_duration_label.setObjectName("speed_label")
+        self.lin_parameters.addWidget(self.lin_duration_label, 1, 0, 1, 1)
+
+        self.lin_duration_unit = QtWidgets.QLabel(self.lin_parameter_gridLayoutWidget)
+        self.lin_duration_unit.setObjectName("speed_unit")
+        self.lin_parameters.addWidget(self.lin_duration_unit, 1, 2, 1, 1)
+
+        # Sequence tab
 
         self.sequence_tab = QtWidgets.QWidget()
         self.sequence_tab.setObjectName("sequence_tab")
@@ -77,43 +120,45 @@ class Ui_MainWindow(object):
         self.soft_key_C_sequence_tab.setGeometry(QtCore.QRect(400, 410, 160, 50))
         self.soft_key_C_sequence_tab.setObjectName("soft_key_C_sequence_tab")
 
+        # grid layout for parameters of sequence tab
 
+        self.sequence_parameter_gridLayoutWidget = QtWidgets.QWidget(self.sequence_tab)
+        self.sequence_parameter_gridLayoutWidget.setGeometry(QtCore.QRect(169, 200, 271, 80))
+        self.sequence_parameter_gridLayoutWidget.setObjectName("gridLayoutWidget")
 
-        self.gridLayoutWidget = QtWidgets.QWidget(self.sequence_tab)
-        self.gridLayoutWidget.setGeometry(QtCore.QRect(169, 200, 271, 80))
-        self.gridLayoutWidget.setObjectName("gridLayoutWidget")
+        self.sequence_parameters = QtWidgets.QGridLayout(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_parameters.setContentsMargins(0, 0, 0, 0)
+        self.sequence_parameters.setObjectName("parameters")
 
-        self.parameters = QtWidgets.QGridLayout(self.gridLayoutWidget)
-        self.parameters.setContentsMargins(0, 0, 0, 0)
-        self.parameters.setObjectName("parameters")
+        self.sequence_speed_value = QtWidgets.QLabel(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_speed_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTrailing | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.sequence_speed_value.setObjectName("speed_value")
+        self.sequence_parameters.addWidget(self.sequence_speed_value, 1, 1, 1, 1)
 
-        self.speed_value = QtWidgets.QLabel(self.gridLayoutWidget)
-        self.speed_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.speed_value.setObjectName("speed_value")
-        self.parameters.addWidget(self.speed_value, 1, 1, 1, 1)
+        self.sequence_speed_label = QtWidgets.QLabel(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_speed_label.setObjectName("speed_label")
+        self.sequence_parameters.addWidget(self.sequence_speed_label, 1, 0, 1, 1)
 
-        self.speed_label = QtWidgets.QLabel(self.gridLayoutWidget)
-        self.speed_label.setObjectName("speed_label")
+        self.sequence_speed_unit = QtWidgets.QLabel(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_speed_unit.setObjectName("speed_unit")
+        self.sequence_parameters.addWidget(self.sequence_speed_unit, 1, 2, 1, 1)
 
-        self.parameters.addWidget(self.speed_label, 1, 0, 1, 1)
+        self.sequence_deflection_label = QtWidgets.QLabel(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_deflection_label.setObjectName("deflection_label")
+        self.sequence_parameters.addWidget(self.sequence_deflection_label, 0, 0, 1, 1)
 
-        self.speed_unit = QtWidgets.QLabel(self.gridLayoutWidget)
-        self.speed_unit.setObjectName("speed_unit")
-        self.parameters.addWidget(self.speed_unit, 1, 2, 1, 1)
+        self.sequence_deflection_value = QtWidgets.QLabel(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_deflection_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTrailing | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.sequence_deflection_value.setObjectName("deflection_value")
+        self.sequence_parameters.addWidget(self.sequence_deflection_value, 0, 1, 1, 1)
 
-        self.deflection_label = QtWidgets.QLabel(self.gridLayoutWidget)
-        self.deflection_label.setObjectName("deflection_label")
-        self.parameters.addWidget(self.deflection_label, 0, 0, 1, 1)
-        self.deflection_value = QtWidgets.QLabel(self.gridLayoutWidget)
-        self.deflection_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight|QtCore.Qt.AlignmentFlag.AlignTrailing|QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.deflection_value.setObjectName("deflection_value")
-        self.parameters.addWidget(self.deflection_value, 0, 1, 1, 1)
-        self.deflection_unit = QtWidgets.QLabel(self.gridLayoutWidget)
-        self.deflection_unit.setObjectName("deflection_unit")
-        self.parameters.addWidget(self.deflection_unit, 0, 2, 1, 1)
+        self.sequence_deflection_unit = QtWidgets.QLabel(self.sequence_parameter_gridLayoutWidget)
+        self.sequence_deflection_unit.setObjectName("deflection_unit")
+        self.sequence_parameters.addWidget(self.sequence_deflection_unit, 0, 2, 1, 1)
 
         self.tab_bar.addTab(self.sequence_tab, "")
 
+        # Settings tab
 
         self.settings_tab = QtWidgets.QWidget()
         self.settings_tab.setObjectName("settings_tab")
@@ -156,25 +201,37 @@ class Ui_MainWindow(object):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.tab_bar.setTabText(self.tab_bar.indexOf(self.jog_tab), _translate("MainWindow", "JOG"))
-        self.tab_bar.setTabText(self.tab_bar.indexOf(self.joystick_tab), _translate("MainWindow", "STICK"))
 
         self.soft_key_A_joystick_tab.setText(_translate("MainWindow", "Mode"))
-        self.soft_key_B_joystick_tab.setText(_translate("MainWindow", "B"))
+        self.soft_key_B_joystick_tab.setText(_translate("MainWindow", "-"))
         self.soft_key_C_joystick_tab.setText(_translate("MainWindow", "Rot 0"))
 
-        self.tab_bar.setTabText(self.tab_bar.indexOf(self.ab_tab), _translate("MainWindow", "A-B"))
+        self.tab_bar.setTabText(self.tab_bar.indexOf(self.joystick_tab), _translate("MainWindow", "STICK"))
 
-        self.soft_key_A_sequence_tab.setText(_translate("MainWindow", "A"))
-        self.soft_key_B_sequence_tab.setText(_translate("MainWindow", "B"))
-        self.soft_key_C_sequence_tab.setText(_translate("MainWindow", "SELECT"))
+        self.soft_key_A_lin_tab.setText(_translate("MainWindow", "START"))
+        self.soft_key_B_lin_tab.setText(_translate("MainWindow", "TARGET"))
+        self.soft_key_C_lin_tab.setText(_translate("MainWindow", "PAR SEL"))
 
-        self.speed_value.setText(_translate("MainWindow", "0.1"))
-        self.speed_label.setText(_translate("MainWindow", "SPEED"))
-        self.speed_unit.setText(_translate("MainWindow", "m/s"))
-        self.deflection_label.setText(_translate("MainWindow", "DEFLECTION"))
-        self.deflection_value.setText(_translate("MainWindow", "0.1"))
-        self.deflection_unit.setText(_translate("MainWindow", "m"))
+        self.lin_duration_label.setText(_translate("MainWindow", "DURATION"))
+        self.lin_duration_value.setText(_translate("MainWindow", "7"))
+        self.lin_duration_unit.setText(_translate("MainWindow", "m"))
+
+        self.tab_bar.setTabText(self.tab_bar.indexOf(self.lin_tab), _translate("MainWindow", "LIN"))
+
+        self.soft_key_A_sequence_tab.setText(_translate("MainWindow", "-"))
+        self.soft_key_B_sequence_tab.setText(_translate("MainWindow", "-"))
+        self.soft_key_C_sequence_tab.setText(_translate("MainWindow", "PAR SEL"))
+
+        self.sequence_speed_value.setText(_translate("MainWindow", "0.1"))
+        self.sequence_speed_label.setText(_translate("MainWindow", "SPEED"))
+        self.sequence_speed_unit.setText(_translate("MainWindow", "m/s"))
+
+        self.sequence_deflection_label.setText(_translate("MainWindow", "DEFLECTION"))
+        self.sequence_deflection_value.setText(_translate("MainWindow", "0.1"))
+        self.sequence_deflection_unit.setText(_translate("MainWindow", "m"))
+
         self.tab_bar.setTabText(self.tab_bar.indexOf(self.sequence_tab), _translate("MainWindow", "SEQ"))
+
         self.initialize_button.setText(_translate("MainWindow", "Initialize Steppers"))
         self.homing_button.setText(_translate("MainWindow", "Run Homing Sequence"))
         self.joystick_calibration_button.setText(_translate("MainWindow", "Joystick\n"

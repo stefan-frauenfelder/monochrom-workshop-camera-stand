@@ -50,6 +50,7 @@ class Hsm(object):
 
         # sequencer callbacks
         self.sequencer.on_enter(state_name='s_at_setup', callback='cb_on_enter_s_at_setup')
+        self.sequencer.on_exit(state_name='s_at_setup', callback='cb_on_exit_s_at_setup')
         self.sequencer.on_enter(state_name='s_at_start', callback='cb_on_enter_s_at_start')
         self.sequencer.on_enter(state_name='s_at_target', callback='cb_on_enter_s_at_target')
         self.sequencer.on_enter(state_name='s_moving_to_start', callback='cb_on_enter_s_moving_to_start')
@@ -155,7 +156,11 @@ class Hsm(object):
     # sequencer callbacks
 
     def cb_on_enter_s_at_setup(self, event):
-        pass
+        motion_controller.start_polar_joystick_control()
+
+    def cb_on_exit_s_at_setup(self, event):
+        motion_controller.stop_continuous_control_thread()
+        motion_controller.set_setup_marker()
 
     def cb_on_enter_s_at_start(self, event):
         pass
@@ -164,20 +169,30 @@ class Hsm(object):
         pass
 
     def cb_on_enter_s_moving_to_start(self, event):
-        motion_controller.move_to_front_linear_start_position()
+        if self.sequencer_variant == 'front_linear':
+            motion_controller.move_to_front_linear_start_position()
+        elif self.sequencer_variant == 'linear_interpolation':
+            motion_controller.move_to_start()
         self.trig_reached()
 
     def cb_on_enter_s_moving_to_setup(self, event):
-        motion_controller.synchronized_move_to_marker(motion_controller.current_sequence_setup_marker)
+        motion_controller.move_to_setup()
         self.trig_reached()
 
     def cb_on_enter_s_moving_forward(self, event):
+        # start recording if camera is on
         hardware_manager.cam.start_recording()
-        motion_controller.front_linear_motion()
+        # do the target motion
+        if self.sequencer_variant == 'front_linear':
+            motion_controller.front_linear_motion()
+        elif self.sequencer_variant == 'linear_interpolation':
+            motion_controller.move_to_target()
+        # stop recording
         hardware_manager.cam.stop_recording()
         self.trig_reached()
 
     def cb_on_enter_s_moving_backwards(self, event):
+        motion_controller.move_to_start()
         self.trig_reached()
 
     def start_jog_control(self, event):
